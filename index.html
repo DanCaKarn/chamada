@@ -1,441 +1,552 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Chamada QR</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<meta name="theme-color" content="#0b1020">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chamada QR">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
 <style>
-/* Layout: uma coluna estreita tipo prancheta; visor da câmera no topo, cartão de confirmação sobre o visor, lista do dia por turma abaixo */
+/* Layout: app de tela cheia. Câmera ocupa a tela; barra de cima (data e envio), alvo no centro,
+   barra de baixo (contagem e botões). Lista, digitação e ajustes abrem em painéis que sobem de baixo. */
 :root{
+  --cam:#05070d; --on-cam:#ffffff; --on-cam-dim:rgba(255,255,255,.72); --glass:rgba(10,14,26,.62);
   --bg:#f3f5f9; --surface:#ffffff; --fg:#17203a; --muted:#5d6782; --line:#dde2ec;
-  --ink:#1f4fd1; --ink-fg:#ffffff; --ok:#16794a; --ok-bg:#e3f4ea; --warn:#9a5b00; --warn-bg:#fbefd9; --err:#b3261e; --err-bg:#fbe4e2;
-  --viewer:#0b1020; --frame:#ffffff; --hit:#3ddc84;
-  --display:"Space Grotesk",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
+  --ink:#2f5fe0; --ink-fg:#ffffff; --hit:#3ddc84;
+  --ok:#16794a; --ok-bg:#e3f4ea; --warn:#9a5b00; --warn-bg:#fbefd9; --err:#b3261e; --err-bg:#fbe4e2;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --st:env(safe-area-inset-top,0px); --sb:env(safe-area-inset-bottom,0px); --sl:env(safe-area-inset-left,0px); --sr:env(safe-area-inset-right,0px);
+  color-scheme:light;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+@media (prefers-color-scheme:dark){:root{
   --bg:#0f1422; --surface:#182033; --fg:#e7ebf5; --muted:#9aa4bf; --line:#2a3550;
-  --ink:#7ea2ff; --ink-fg:#0b1020; --ok:#5fd39a; --ok-bg:#12321f; --warn:#f0b65a; --warn-bg:#3a2a0e; --err:#ff8a80; --err-bg:#3d1714;
-  --viewer:#05070d; --frame:#e7ebf5; --hit:#5fd39a; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#0f1422; --surface:#182033; --fg:#e7ebf5; --muted:#9aa4bf; --line:#2a3550;
-  --ink:#7ea2ff; --ink-fg:#0b1020; --ok:#5fd39a; --ok-bg:#12321f; --warn:#f0b65a; --warn-bg:#3a2a0e; --err:#ff8a80; --err-bg:#3d1714;
-  --viewer:#05070d; --frame:#e7ebf5; --hit:#5fd39a; color-scheme:dark}
-*{box-sizing:border-box}
-body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.5}
-.wrap{max-width:560px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
-header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
-h1{font-family:var(--display);font-size:1.75rem;margin:0;letter-spacing:-.01em}
-.today{font-weight:600;color:var(--muted);text-transform:capitalize}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px}
-button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:10px 14px;font-weight:600}
-button:disabled{opacity:.5;cursor:default}
+  --ink:#7ea2ff; --ink-fg:#0b1020; --hit:#5fd39a;
+  --ok:#5fd39a; --ok-bg:#12321f; --warn:#f0b65a; --warn-bg:#3a2a0e; --err:#ff8a80; --err-bg:#3d1714; color-scheme:dark}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--cam);font-family:var(--font);font-size:16px;line-height:1.4;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+[hidden]{display:none!important}
+button{font:inherit;cursor:pointer;border:none;border-radius:14px;padding:12px 16px;font-weight:600;color:inherit;background:none}
 button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-.primary{background:var(--ink);color:var(--ink-fg);border:none}
-.big{font-family:var(--display);font-size:1.15rem;padding:16px;border-radius:12px}
+#app{position:fixed;inset:0;overflow:hidden;color:var(--on-cam)}
 
-/* visor */
-.viewer{position:relative;width:100%;max-width:100%;aspect-ratio:1/1;background:var(--viewer);border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center}
-.viewer video,.viewer canvas.still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.viewer .idle{position:relative;color:#cfd6e8;text-align:center;padding:24px;display:flex;flex-direction:column;gap:12px;align-items:center;max-width:300px}
-.viewer .idle svg{width:56px;height:56px;opacity:.8}
-.frame{position:absolute;width:62%;aspect-ratio:1/1;pointer-events:none;
-  background:
-   linear-gradient(var(--frame),var(--frame)) top left/28px 4px no-repeat,
-   linear-gradient(var(--frame),var(--frame)) top left/4px 28px no-repeat,
-   linear-gradient(var(--frame),var(--frame)) top right/28px 4px no-repeat,
-   linear-gradient(var(--frame),var(--frame)) top right/4px 28px no-repeat,
-   linear-gradient(var(--frame),var(--frame)) bottom left/28px 4px no-repeat,
-   linear-gradient(var(--frame),var(--frame)) bottom left/4px 28px no-repeat,
-   linear-gradient(var(--frame),var(--frame)) bottom right/28px 4px no-repeat,
-   linear-gradient(var(--frame),var(--frame)) bottom right/4px 28px no-repeat;
-  box-shadow:0 0 0 9999px rgba(0,0,0,.35)}
-.frame.hit{--frame:var(--hit)}
-.scanline{position:absolute;left:19%;right:19%;height:2px;background:var(--hit);opacity:.8;top:50%}
-@media (prefers-reduced-motion:no-preference){.scanline{animation:scan 2s ease-in-out infinite}@keyframes scan{0%,100%{top:22%}50%{top:76%}}}
-.vstatus{position:absolute;left:12px;right:12px;bottom:12px;text-align:center;color:#fff;font-size:.85rem;font-weight:500;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+/* câmera */
+#video,#still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#still{display:block}
+.shade{position:absolute;inset:0;pointer-events:none}
+.target{position:absolute;left:50%;top:46%;width:min(72vw,52vh,360px);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:22px;box-shadow:0 0 0 200vmax rgba(0,0,0,.42);pointer-events:none}
+.target::before{content:"";position:absolute;inset:0;border-radius:22px;padding:5px;--c:var(--on-cam);
+  background:linear-gradient(var(--c),var(--c)) top left/44px 5px no-repeat,linear-gradient(var(--c),var(--c)) top left/5px 44px no-repeat,
+  linear-gradient(var(--c),var(--c)) top right/44px 5px no-repeat,linear-gradient(var(--c),var(--c)) top right/5px 44px no-repeat,
+  linear-gradient(var(--c),var(--c)) bottom left/44px 5px no-repeat,linear-gradient(var(--c),var(--c)) bottom left/5px 44px no-repeat,
+  linear-gradient(var(--c),var(--c)) bottom right/44px 5px no-repeat,linear-gradient(var(--c),var(--c)) bottom right/5px 44px no-repeat}
+.target.hit::before{--c:var(--hit)}
+.target.hit{box-shadow:0 0 0 200vmax rgba(0,0,0,.55)}
+.laser{position:absolute;left:10%;right:10%;height:2px;top:50%;background:var(--hit);box-shadow:0 0 12px var(--hit);opacity:.85}
+@media (prefers-reduced-motion:no-preference){.laser{animation:scan 1.8s ease-in-out infinite}@keyframes scan{0%,100%{top:12%}50%{top:88%}}}
+.target.hit .laser{display:none}
+
+/* barras */
+.topbar{position:absolute;left:0;right:0;top:0;padding:calc(var(--st) + 10px) calc(var(--sr) + 14px) 10px calc(var(--sl) + 14px);display:flex;align-items:center;gap:10px;background:linear-gradient(rgba(0,0,0,.55),transparent)}
+.brand{display:flex;flex-direction:column;min-width:0;flex:1}
+.brand b{font-size:1.05rem;letter-spacing:-.01em}
+.brand span{font-size:.8rem;color:var(--on-cam-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600;background:var(--glass);padding:7px 11px;border-radius:999px;white-space:nowrap;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.pill i{width:8px;height:8px;border-radius:50%;background:#9aa4bf;flex:none}
+.pill.ok i{background:#3ddc84}.pill.wait i{background:#f0b65a}.pill.off i{background:#ff8a80}
+.iconbtn{width:42px;height:42px;padding:0;border-radius:50%;background:var(--glass);display:grid;place-items:center;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);flex:none}
+.iconbtn svg{width:22px;height:22px}
+.hintcam{position:absolute;left:0;right:0;top:calc(46% + min(36vw,26vh,180px) + 18px);text-align:center;font-size:.9rem;color:var(--on-cam-dim);padding:0 24px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.bottombar{position:absolute;left:0;right:0;bottom:0;padding:14px calc(var(--sr) + 14px) calc(var(--sb) + 14px) calc(var(--sl) + 14px);display:flex;align-items:center;gap:10px;background:linear-gradient(transparent,rgba(0,0,0,.6))}
+.counter{flex:1;display:flex;flex-direction:column;min-width:0}
+.counter b{font-size:1.9rem;line-height:1;font-variant-numeric:tabular-nums}
+.counter span{font-size:.8rem;color:var(--on-cam-dim)}
+.glassbtn{background:var(--glass);color:var(--on-cam);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);display:flex;align-items:center;gap:8px}
+.glassbtn svg{width:20px;height:20px}
+
+/* tela inicial */
+.start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;background:radial-gradient(circle at 50% 40%,#1b2747,var(--cam) 70%)}
+.start .logo{width:92px;height:92px;border-radius:24px}
+.start h1{margin:0;font-size:1.8rem;letter-spacing:-.02em}
+.start p{margin:0;color:var(--on-cam-dim);max-width:300px}
+.start .go{background:var(--ink);color:var(--ink-fg);font-size:1.15rem;padding:16px 34px;border-radius:999px}
+.start .err{background:rgba(255,138,128,.15);color:#ffb4ab;padding:10px 14px;border-radius:12px;max-width:320px;font-size:.9rem}
+.start .alt{background:rgba(255,255,255,.12);color:var(--on-cam)}
 
 /* confirmação */
-.confirm{position:absolute;left:12px;right:12px;bottom:12px;background:var(--surface);color:var(--fg);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
-.confirm .lbl{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.confirm .who{display:flex;gap:16px;flex-wrap:wrap}
-.confirm .who div{display:flex;flex-direction:column;min-width:0}
-.confirm .val{font-family:var(--mono);font-size:1.25rem;overflow-wrap:anywhere}
-.confirm .dup{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:6px 10px;font-size:.85rem;font-weight:500}
-.confirm .btns{display:flex;gap:8px}
-.confirm .btns button{flex:1}
+.card{position:absolute;left:calc(var(--sl) + 12px);right:calc(var(--sr) + 12px);bottom:calc(var(--sb) + 12px);background:var(--surface);color:var(--fg);border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:14px;box-shadow:0 12px 40px rgba(0,0,0,.45);max-width:520px;margin:0 auto}
+.card .who{display:flex;gap:22px;flex-wrap:wrap}
+.card .who div{display:flex;flex-direction:column;min-width:0}
+.lbl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.card .val{font-family:var(--mono);font-size:1.5rem;font-weight:600;overflow-wrap:anywhere}
+.card .dup{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:.9rem;font-weight:600}
+.card .btns{display:flex;gap:10px}
+.card .btns button{flex:1;padding:15px}
+.b-sec{background:var(--bg);color:var(--fg);border:1px solid var(--line)}
+.b-pri{background:var(--ink);color:var(--ink-fg)}
+@media (prefers-reduced-motion:no-preference){.card{animation:up .18s ease-out}@keyframes up{from{transform:translateY(30px);opacity:.4}to{transform:none;opacity:1}}}
 
-.controls{display:flex;gap:8px;flex-wrap:wrap}
-.controls button{flex:1 1 140px}
-.manual{display:flex;gap:8px}
-.manual input{flex:1;min-width:0;font:inherit;font-family:var(--mono);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-.hint{font-size:.85rem;color:var(--muted);margin:0}
-.hint code{font-family:var(--mono);background:var(--bg);padding:1px 5px;border-radius:4px}
-.toast{border-radius:10px;padding:10px 12px;font-weight:500}
-.toast.ok{background:var(--ok-bg);color:var(--ok)}
-.toast.warn{background:var(--warn-bg);color:var(--warn)}
-.toast.err{background:var(--err-bg);color:var(--err)}
+/* aviso */
+.toast{position:absolute;left:50%;top:calc(var(--st) + 70px);transform:translateX(-50%);max-width:calc(100% - 32px);width:max-content;padding:10px 16px;border-radius:14px;font-weight:600;font-size:.92rem;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.toast.ok{background:var(--ok-bg);color:var(--ok)}.toast.warn{background:var(--warn-bg);color:var(--warn)}.toast.err{background:var(--err-bg);color:var(--err)}
 
-/* lista */
-.listhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-h2{font-family:var(--display);font-size:1.15rem;margin:0}
-h3{font-family:var(--display);font-size:1rem;margin:0;display:flex;justify-content:space-between;gap:8px;padding-top:6px}
-h3 span{font-family:var(--body);font-weight:500;color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
-.count{font-family:var(--display);font-size:1.6rem;font-variant-numeric:tabular-nums}
-.count small{font-family:var(--body);font-size:.85rem;color:var(--muted);margin-left:4px}
-.groups{display:flex;flex-direction:column;gap:14px}
+/* painéis */
+.sheetwrap{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);color:var(--fg);width:100%;max-width:560px;max-height:86%;border-radius:22px 22px 0 0;display:flex;flex-direction:column;-webkit-user-select:text;user-select:text}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .2s ease-out}}
+.sheethead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px calc(var(--sr) + 18px) 10px calc(var(--sl) + 18px)}
+.sheethead h2{margin:0;font-size:1.2rem}
+.close{background:var(--surface);border:1px solid var(--line);color:var(--fg);padding:8px 14px}
+.sheetbody{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px calc(var(--sr) + 18px) calc(var(--sb) + 20px) calc(var(--sl) + 18px);display:flex;flex-direction:column;gap:14px}
+.group{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:6px 14px}
+.group h3{margin:0;padding:10px 0 6px;font-size:1rem;display:flex;justify-content:space-between;gap:8px}
+.group h3 span{font-weight:500;color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
 ul{list-style:none;margin:0;padding:0}
-li{display:grid;grid-template-columns:2rem 1fr auto auto;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
-.n{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.85rem}
+li{display:grid;grid-template-columns:1.8rem 1fr auto auto auto;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.n{color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
 .code{font-family:var(--mono);overflow-wrap:anywhere;min-width:0}
-.time{font-variant-numeric:tabular-nums;color:var(--muted)}
-.del{padding:4px 10px;font-size:.8rem;font-weight:500;color:var(--muted)}
+.time{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.9rem}
+.sync{width:9px;height:9px;border-radius:50%;background:var(--warn)}
+.sync.sent{background:var(--ok)}
+.del{padding:5px 10px;font-size:.8rem;font-weight:500;color:var(--muted);border:1px solid var(--line);background:var(--surface);border-radius:10px}
 .del.sure{color:var(--err);border-color:var(--err)}
-.example{opacity:.55}
-.badge{display:inline-block;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;background:var(--warn-bg);color:var(--warn);padding:2px 8px;border-radius:999px}
-.actions{display:flex;gap:8px;flex-wrap:wrap}
-.actions button{flex:1 1 140px}
-textarea{width:100%;min-height:120px;font-family:var(--mono);font-size:.8rem;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px}
-.lgpd{font-size:.82rem;color:var(--muted);margin:0}
+.empty{color:var(--muted);text-align:center;padding:24px 8px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>button{flex:1 1 140px;background:var(--surface);border:1px solid var(--line);color:var(--fg)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.field input[type=text],.field input[type=url]{font:inherit;font-size:16px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:100%;-webkit-user-select:text;user-select:text}
+.field input.mono{font-family:var(--mono)}
+.help{font-size:.85rem;color:var(--muted);margin:0}
+.help code{font-family:var(--mono);background:var(--surface);border:1px solid var(--line);padding:1px 5px;border-radius:5px}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.switch span{display:flex;flex-direction:column}
+.switch small{color:var(--muted);font-size:.82rem}
+.switch input{width:48px;height:28px;accent-color:var(--ink);flex:none}
+.status{font-size:.88rem;border-radius:10px;padding:8px 12px}
+.status.ok{background:var(--ok-bg);color:var(--ok)}.status.err{background:var(--err-bg);color:var(--err)}.status.warn{background:var(--warn-bg);color:var(--warn)}
+textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:10px}
+.manualrow{display:flex;gap:8px}
+.manualrow input{flex:1;min-width:0}
+.manualrow button{background:var(--ink);color:var(--ink-fg)}
 </style>
+</head>
+<body>
+<div id="app">
+  <video id="video" playsinline muted autoplay></video>
+  <canvas id="still" hidden></canvas>
 
-<div class="wrap">
-  <header>
+  <div class="target" id="target" hidden><div class="laser"></div></div>
+  <div class="hintcam" id="hintcam" hidden>Aponte para o QR Code da carteirinha</div>
+
+  <div class="topbar">
+    <div class="brand"><b>Chamada QR</b><span id="today"></span></div>
+    <div class="pill" id="pill"><i></i><span id="pillText">Sem planilha</span></div>
+    <button class="iconbtn" id="torchBtn" hidden aria-label="Lanterna">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12v4l-3 5v11H9V11L6 6z"/><path d="M12 14v3"/></svg>
+    </button>
+    <button class="iconbtn" id="setBtn" aria-label="Ajustes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+
+  <div class="bottombar" id="bottombar">
+    <div class="counter"><b id="count">0</b><span>presentes hoje</span></div>
+    <button class="glassbtn" id="typeBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>Digitar
+    </button>
+    <button class="glassbtn" id="listBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Lista
+    </button>
+  </div>
+
+  <div class="card" id="card" hidden role="dialog" aria-label="Confirmar presença">
+    <div class="who">
+      <div><span class="lbl">Aluno</span><span class="val" id="cCodigo"></span></div>
+      <div><span class="lbl">Turma</span><span class="val" id="cTurma"></span></div>
+    </div>
+    <div class="dup" id="cDup" hidden>Esse aluno já está na lista de hoje.</div>
+    <div class="btns">
+      <button class="b-sec" id="cNo">Cancelar</button>
+      <button class="b-pri" id="cYes">Confirmar</button>
+    </div>
+  </div>
+
+  <div class="start" id="start">
+    <img class="logo" src="icon-192.png" alt="">
     <h1>Chamada QR</h1>
-    <span class="today" id="today"></span>
-  </header>
+    <p>Leia o QR Code das carteirinhas e a presença vai direto pra planilha.</p>
+    <button class="go" id="goBtn">Iniciar leitura</button>
+    <div class="err" id="camErr" hidden></div>
+    <button class="alt" id="photoBtn" hidden>Usar foto</button>
+  </div>
+  <input type="file" id="foto" accept="image/*" capture="environment" hidden>
 
-  <section class="panel">
-    <div class="viewer" id="viewer">
-      <video id="video" playsinline muted hidden></video>
-      <canvas class="still" id="still" hidden></canvas>
-      <div class="idle" id="idle">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="4" height="4"/><rect x="13" y="13" width="4" height="4"/><path d="M13 7h4v4M7 13v4h4"/></svg>
-        <span id="idleText">Toque em "Abrir câmera" e aponte para o QR Code da carteirinha.</span>
-      </div>
-      <div class="frame" id="frame" hidden></div>
-      <div class="scanline" id="scanline" hidden></div>
-      <div class="vstatus" id="vstatus" hidden>Enquadre o QR Code no quadrado</div>
-      <div class="confirm" id="confirm" hidden role="dialog" aria-label="Confirmar presença">
-        <div class="who">
-          <div><span class="lbl">Aluno</span><span class="val" id="cCodigo"></span></div>
-          <div><span class="lbl">Turma</span><span class="val" id="cTurma"></span></div>
+  <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
+
+  <!-- painel: lista -->
+  <div class="sheetwrap" id="listSheet" hidden>
+    <div class="sheet" role="dialog" aria-label="Lista de presença">
+      <div class="sheethead"><h2>Presentes hoje</h2><button class="close" data-close>Fechar</button></div>
+      <div class="sheetbody">
+        <div id="groups"></div>
+        <p class="help"><span class="sync" style="display:inline-block"></span> esperando envio &nbsp; <span class="sync sent" style="display:inline-block"></span> já está na planilha</p>
+        <div class="row">
+          <button id="exportBtn">Baixar CSV</button>
+          <button id="copyBtn">Copiar CSV</button>
         </div>
-        <div class="dup" id="cDup" hidden>Esse aluno já está na lista de hoje.</div>
-        <div class="btns">
-          <button type="button" id="cNo">Cancelar</button>
-          <button type="button" class="primary" id="cYes">Confirmar presença</button>
-        </div>
+        <textarea id="csvBox" hidden readonly></textarea>
       </div>
     </div>
+  </div>
 
-    <div class="controls">
-      <button type="button" class="primary big" id="camBtn">Abrir câmera</button>
-      <button type="button" class="big" id="photoBtn" hidden>Usar foto</button>
+  <!-- painel: digitar -->
+  <div class="sheetwrap" id="typeSheet" hidden>
+    <div class="sheet" role="dialog" aria-label="Digitar código">
+      <div class="sheethead"><h2>Digitar código</h2><button class="close" data-close>Fechar</button></div>
+      <form class="sheetbody" id="manualForm">
+        <div class="field">
+          <label for="manual">Turma e código</label>
+          <div class="manualrow"><input type="text" class="mono" id="manual" placeholder="1M01-MCN|A017" autocomplete="off" autocapitalize="characters"><button type="submit">Registrar</button></div>
+        </div>
+        <p class="help">Use quando a carteirinha estiver amassada ou sem QR Code. Escreva a turma, uma barra em pé e o código: <code>1M01-MCN|A017</code>.</p>
+      </form>
     </div>
-    <input type="file" id="foto" accept="image/*" capture="environment" hidden>
-    <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
-    <form class="manual" id="manualForm">
-      <input type="text" id="manual" placeholder="Ou digite: 1M01-MCN|A017" autocomplete="off" aria-label="Turma e código do aluno">
-      <button type="submit">Registrar</button>
-    </form>
-    <p class="hint">O QR Code traz a turma e o código do aluno, separados por uma barra em pé: <code>1M01-MCN|A017</code>.</p>
-  </section>
+  </div>
 
-  <section class="panel">
-    <div class="listhead">
-      <h2>Presentes hoje</h2>
-      <span class="count" id="count">0<small>alunos</small></span>
+  <!-- painel: ajustes -->
+  <div class="sheetwrap" id="setSheet" hidden>
+    <div class="sheet" role="dialog" aria-label="Ajustes">
+      <div class="sheethead"><h2>Ajustes</h2><button class="close" data-close>Fechar</button></div>
+      <div class="sheetbody">
+        <div class="field">
+          <label for="sheetUrl">Endereço da planilha (Apps Script)</label>
+          <input type="url" class="mono" id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <div class="row"><button id="testBtn">Testar conexão</button><button id="syncBtn">Enviar agora</button></div>
+        <div class="status" id="setStatus" hidden></div>
+        <label class="switch" for="askConfirm">
+          <span>Confirmar cada leitura<small>Desligado: registra direto depois do apito, mais rápido na fila</small></span>
+          <input type="checkbox" id="askConfirm" checked>
+        </label>
+        <p class="help">As presenças ficam guardadas no celular só até chegarem na planilha. Sem internet, elas esperam na fila e são enviadas sozinhas quando a conexão voltar.</p>
+      </div>
     </div>
-    <div class="groups" id="groups"></div>
-    <div class="actions">
-      <button type="button" id="exportBtn">Baixar planilha (CSV)</button>
-      <button type="button" id="copyBtn">Copiar CSV</button>
-    </div>
-    <textarea id="csvBox" hidden readonly aria-label="CSV da chamada"></textarea>
-  </section>
-
-  <p class="lgpd">O QR Code guarda só a turma e o código do aluno, sem nome. Os registros ficam salvos apenas neste aparelho e navegador.</p>
+  </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/barcode-detector@3.0.8/dist/iife/polyfill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script>
 (function(){
-  const KEY = "chamada-qr-v2";
+  "use strict";
   const $ = id => document.getElementById(id);
-  let regs = [];
-  try { regs = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch(e) { regs = []; }
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(regs)); } catch(e) {} };
+  const K = { regs: "cqr-regs", queue: "cqr-queue", url: "cqr-url", ask: "cqr-ask" };
+  const load = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e) { return d; } };
+  const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} };
 
-  const pad = n => String(n).padStart(2,"0");
-  const hojeISO = () => { const d = new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
-  const hojeTxt = () => new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"});
-  $("today").textContent = hojeTxt();
+  let regs = load(K.regs, []);       // registros do dia (e anteriores, limpos depois de 7 dias)
+  let queue = load(K.queue, []);     // operações esperando envio: {op:"add", reg} | {op:"del", id}
+  let sheetUrl = load(K.url, "");
+  let askConfirm = load(K.ask, true);
 
-  // Formato do QR: "TURMA|CODIGO". Sem barra, a turma fica "Sem turma".
+  const pad = n => String(n).padStart(2, "0");
+  const hojeISO = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+  const hojeTxt = () => { const t = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }); return t.charAt(0).toUpperCase() + t.slice(1); };
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  // limpa registros com mais de 7 dias que já foram enviados
+  (function(){ const lim = Date.now() - 7 * 864e5; regs = regs.filter(r => !r.sent || new Date(r.data + "T12:00").getTime() > lim); store(K.regs, regs); })();
+
   function parse(txt){
-    txt = String(txt || "").trim();
-    if (!txt) return null;
+    txt = String(txt || "").trim(); if (!txt) return null;
     const i = txt.indexOf("|");
     if (i < 0) return { turma: "Sem turma", codigo: txt.toUpperCase() };
-    const turma = txt.slice(0,i).trim(), codigo = txt.slice(i+1).trim().toUpperCase();
-    if (!codigo) return null;
-    return { turma: turma || "Sem turma", codigo };
+    const turma = txt.slice(0, i).trim(), codigo = txt.slice(i + 1).trim().toUpperCase();
+    return codigo ? { turma: turma || "Sem turma", codigo } : null;
   }
   const doDia = () => regs.filter(r => r.data === hojeISO());
   const jaTem = p => doDia().some(r => r.turma === p.turma && r.codigo === p.codigo);
 
-  let toastTimer;
-  function toast(msg, kind){
-    const el = $("toast"); el.textContent = msg; el.className = "toast " + kind; el.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, 4000);
-  }
+  let toastT;
+  function toast(msg, kind, ms){ const t = $("toast"); t.textContent = msg; t.className = "toast " + kind; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms || 2200); }
 
-  // Apito: arquivo de som gerado aqui mesmo (funciona melhor no iPhone que o som sintetizado).
-  // O som é "destravado" no primeiro toque, porque o celular só deixa tocar depois de um toque na tela.
-  function wavURI(freqs, dur){
-    const sr = 22050, n = Math.floor(sr * dur), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
-    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-    w(0,"RIFF"); v.setUint32(4, 36 + n * 2, true); w(8,"WAVE"); w(12,"fmt "); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
-    v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data"); v.setUint32(40, n * 2, true);
-    for (let i = 0; i < n; i++) {
-      const t = i / sr, f = freqs[Math.min(freqs.length - 1, Math.floor(t / dur * freqs.length))];
-      const env = Math.min(1, i / 150, (n - i) / 300);
-      v.setInt16(44 + i * 2, (Math.sin(2 * Math.PI * f * t) > 0 ? 1 : -1) * 11000 * env, true);
-    }
-    let bin = ""; const bytes = new Uint8Array(buf);
-    for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
-    return "data:audio/wav;base64," + btoa(bin);
-  }
-  const sndOk = new Audio(wavURI([1900, 2400], .25)), sndBad = new Audio(wavURI([330, 260], .35));
-  [sndOk, sndBad].forEach(a => { a.preload = "auto"; });
-  let beepFailed = false;
-  function unlockAudio(){
-    [sndOk, sndBad].forEach(a => {
-      if (a._unlocked) return;
-      a._unlocked = true; a.muted = true;
-      try { const p = a.play(); if (p) p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; a._unlocked = false; }); else { a.pause(); a.muted = false; } }
-      catch(e) { a.muted = false; a._unlocked = false; }
-    });
-  }
+  // ---------- som ----------
+  let actx = null;
+  function audioOn(){ try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== "running") actx.resume(); } catch(e) {} }
   function apito(ok){
-    const a = ok ? sndOk : sndBad;
-    try { a.muted = false; a.currentTime = 0; const p = a.play(); beepFailed = false; if (p) p.catch(() => { beepFailed = true; }); } catch(e) { beepFailed = true; }
-    try { navigator.vibrate && navigator.vibrate(ok ? 90 : [60,60,60]); } catch(e) {}
+    try {
+      audioOn(); if (!actx) return;
+      const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+      o.type = "square";
+      o.frequency.setValueAtTime(ok ? 1950 : 330, t);
+      if (ok) o.frequency.setValueAtTime(2450, t + .08); else o.frequency.setValueAtTime(260, t + .15);
+      g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.14, t + .008);
+      g.gain.setValueAtTime(.14, t + (ok ? .17 : .3)); g.gain.exponentialRampToValueAtTime(.0001, t + (ok ? .2 : .34));
+      o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + .36);
+    } catch(e) {}
+    try { navigator.vibrate && navigator.vibrate(ok ? 70 : [60, 50, 60]); } catch(e) {}
   }
-  document.addEventListener("pointerdown", unlockAudio, { once: true });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && actx) actx.resume(); });
 
-  // Leitor: usa o leitor nativo do celular quando existe (Android/Chrome) e o jsQR como reserva.
+  // ---------- leitor ----------
   let detector = null;
   try { if ("BarcodeDetector" in window) detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch(e) { detector = null; }
-  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
-  const tmp = document.createElement("canvas"), tctx = tmp.getContext("2d", { willReadFrequently: true });
-  async function decodeCanvas(cv){
-    if (detector) { try { const r = await withTimeout(detector.detect(cv), 1500); if (r) for (const x of r) if (parse(x.rawValue)) return x.rawValue; } catch(e) {} }
-    if (typeof jsQR !== "function") return null;
-    const tryRegion = (sx, sy, sw, sh, max) => {
-      const s = Math.min(1, max / Math.max(sw, sh));
-      tmp.width = Math.max(1, Math.round(sw * s)); tmp.height = Math.max(1, Math.round(sh * s));
-      tctx.drawImage(cv, sx, sy, sw, sh, 0, 0, tmp.width, tmp.height);
-      const r = jsQR(tctx.getImageData(0, 0, tmp.width, tmp.height).data, tmp.width, tmp.height, { inversionAttempts: "attemptBoth" });
-      return r && r.data && parse(r.data) ? r.data : null;
-    };
-    const W = cv.width, H = cv.height;
-    for (const max of [1400, 900, 2000]) { const r = tryRegion(0, 0, W, H, max); if (r) return r; }
-    // procura em pedaços da foto: centro e quatro cantos, com sobreposição
-    const parts = [[W*.2, H*.2, W*.6, H*.6]];
-    for (const fx of [0, .4]) for (const fy of [0, .4]) parts.push([W*fx, H*fy, W*.6, H*.6]);
-    for (const [x, y, w, h] of parts) for (const max of [900, 1400]) { const r = tryRegion(x, y, w, h, max); if (r) return r; }
+  const video = $("video"), still = $("still");
+  const crop = document.createElement("canvas"), cctx = crop.getContext("2d", { willReadFrequently: true });
+  let stream = null, scanning = false, track = null, lastText = "", lastTime = 0;
+
+  async function iniciar(){
+    audioOn();
+    $("camErr").hidden = true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return semCamera("Este navegador não libera a câmera ao vivo.");
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
+    } catch(e) {
+      return semCamera(e && e.name === "NotAllowedError" ? "A câmera foi bloqueada. No iPhone: Ajustes > Safari > Câmera > Permitir, e abra o app de novo." : "Não consegui abrir a câmera.");
+    }
+    video.srcObject = stream;
+    try { await video.play(); } catch(e) {}
+    track = stream.getVideoTracks()[0];
+    try { const cap = track.getCapabilities ? track.getCapabilities() : {}; if (cap.torch) $("torchBtn").hidden = false;
+          if (cap.focusMode && cap.focusMode.includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}); } catch(e) {}
+    $("start").hidden = true; $("target").hidden = false; $("hintcam").hidden = false;
+    scanning = true; loop();
+  }
+  function semCamera(msg){ $("camErr").textContent = msg; $("camErr").hidden = false; $("photoBtn").hidden = false; }
+
+  let torchOn = false;
+  $("torchBtn").addEventListener("click", () => { if (!track) return; torchOn = !torchOn; track.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(() => {}); });
+
+  // lê só a área do alvo, em tamanho pequeno: é isso que deixa rápido
+  let frameN = 0;
+  function grabTarget(){
+    const vw = video.videoWidth, vh = video.videoHeight; if (!vw) return false;
+    frameN++;
+    if (frameN % 4 === 0) {
+      // a cada 4 quadros, olha a imagem inteira (carteirinha muito perto ou fora do alvo)
+      const s = Math.min(1, 640 / Math.max(vw, vh));
+      crop.width = Math.round(vw * s); crop.height = Math.round(vh * s);
+      cctx.drawImage(video, 0, 0, crop.width, crop.height);
+      return true;
+    }
+    const box = $("target").getBoundingClientRect(), app = $("app").getBoundingClientRect();
+    const scale = Math.max(app.width / vw, app.height / vh);                // object-fit: cover
+    const ox = (app.width - vw * scale) / 2, oy = (app.height - vh * scale) / 2;
+    const pad = box.width * .12;                                            // um pouco além do alvo
+    let sx = (box.left - pad - ox) / scale, sy = (box.top - pad - oy) / scale, sw = (box.width + 2 * pad) / scale;
+    sx = Math.max(0, sx); sy = Math.max(0, sy); sw = Math.min(sw, vw - sx, vh - sy);
+    const size = Math.min(480, Math.round(sw));
+    crop.width = size; crop.height = size;
+    cctx.drawImage(video, sx, sy, sw, sw, 0, 0, size, size);
+    return true;
+  }
+  async function decodeCrop(){
+    if (detector) {
+      try { const r = await detector.detect(crop); for (const x of r) if (x.rawValue) return x.rawValue; return null; } catch(e) { detector = null; }
+    }
+    if (typeof jsQR === "function") { const r = jsQR(cctx.getImageData(0, 0, crop.width, crop.height).data, crop.width, crop.height, { inversionAttempts: "dontInvert" }); return r ? r.data : null; }
     return null;
   }
-
-  // ---- câmera ao vivo ----
-  const video = $("video"), still = $("still");
-  const work = document.createElement("canvas"), wctx = work.getContext("2d", { willReadFrequently: true });
-  let stream = null, scanning = false, pending = null, lastTick = 0;
-
-  function showLive(on){
-    $("idle").hidden = on; video.hidden = !on; $("frame").hidden = !on; $("scanline").hidden = !on; $("vstatus").hidden = !on;
-  }
-  async function abrirCamera(){
-    unlockAudio();
-    if (stream) { fecharCamera(); return; }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return semCamera();
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false });
-      video.srcObject = stream; await video.play();
-      showLive(true); still.hidden = true; $("camBtn").textContent = "Fechar câmera";
-      scanning = true; requestAnimationFrame(loop);
-    } catch(e) { stream = null; semCamera(); }
-  }
-  function fecharCamera(){
-    scanning = false;
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    stream = null; video.srcObject = null; showLive(false); still.hidden = true; $("confirm").hidden = true; pending = null;
-    $("camBtn").textContent = "Abrir câmera";
-  }
-  function semCamera(){
-    $("idleText").textContent = "Aqui a câmera abre no modo foto, por isso o alvo não aparece. Fotografe um QR Code por vez, bem de perto, ocupando boa parte da tela.";
-    $("photoBtn").hidden = false; $("camBtn").hidden = true;
-  }
-
-  let busy = false;
-  async function loop(ts){
-    if (!scanning) return;
-    if (!busy && ts - lastTick > 120 && video.readyState >= 2) {
-      lastTick = ts; busy = true;
-      const vw = video.videoWidth, vh = video.videoHeight;
-      const side = Math.min(vw, vh), s = Math.min(1, 720 / side);
-      work.width = Math.round(side * s); work.height = work.width;
-      wctx.drawImage(video, (vw - side)/2, (vh - side)/2, side, side, 0, 0, work.width, work.height);
-      let txt = null;
-      if (detector) { try { const r = await detector.detect(work); if (r && r[0]) txt = r[0].rawValue; } catch(e) {} }
-      if (!txt && typeof jsQR === "function") {
-        const r = jsQR(wctx.getImageData(0, 0, work.width, work.height).data, work.width, work.height, { inversionAttempts: "dontInvert" });
-        if (r && r.data) txt = r.data;
+  async function loop(){
+    while (scanning) {
+      if (video.readyState >= 2 && grabTarget()) {
+        const t0 = performance.now();
+        const txt = await decodeCrop();
+        window.__lastDecodeMs = performance.now() - t0;
+        if (!scanning) break;
+        const p = txt && parse(txt);
+        if (p) {
+          const key = p.turma + "|" + p.codigo;
+          // mesma carteirinha ainda na frente da câmera: ignora em silêncio
+          if (key === lastText && (Date.now() - lastTime < 2500 || jaTem(p))) { lastTime = Date.now(); await sleep(60); continue; }
+          lastText = key; lastTime = Date.now();
+          achou(p); break;
+        }
       }
-      busy = false;
-      const p = txt && parse(txt);
-      if (p && scanning) { congelar(); perguntar(p); return; }
+      await sleep(16);
     }
-    requestAnimationFrame(loop);
   }
-  function congelar(){
-    scanning = false;
-    still.width = work.width; still.height = work.height;
-    still.getContext("2d").drawImage(work, 0, 0);
-    still.hidden = false; video.hidden = true; $("scanline").hidden = true; $("vstatus").hidden = true;
-    $("frame").classList.add("hit");
-  }
-  function retomar(){
-    $("confirm").hidden = true; pending = null; $("frame").classList.remove("hit");
-    if (stream) { still.hidden = true; video.hidden = false; $("scanline").hidden = false; $("vstatus").hidden = false; scanning = true; setTimeout(() => requestAnimationFrame(loop), 700); }
-    else { still.hidden = true; $("frame").hidden = true; $("idle").hidden = false; }
-  }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  function perguntar(p){
-    pending = p;
+  let pending = null;
+  function congelar(){
+    still.width = crop.width; still.height = crop.height;
+    // congela a imagem da tela inteira (o vídeo para no quadro atual)
+    try { video.pause(); } catch(e) {}
+    $("target").classList.add("hit"); $("hintcam").hidden = true;
+  }
+  function achou(p){
+    scanning = false; congelar();
     const dup = jaTem(p);
     apito(!dup);
+    if (!askConfirm && !dup) { registrar(p); setTimeout(retomar, 550); return; }
+    pending = p;
     $("cCodigo").textContent = p.codigo; $("cTurma").textContent = p.turma;
-    $("cDup").hidden = !dup; $("cYes").hidden = dup; $("cNo").textContent = dup ? "Ok, continuar" : "Cancelar";
-    $("confirm").hidden = false; (dup ? $("cNo") : $("cYes")).focus({ preventScroll: true });
+    $("cDup").hidden = !dup; $("cYes").hidden = dup; $("cNo").textContent = dup ? "Ok" : "Cancelar";
+    $("bottombar").hidden = true; $("card").hidden = false;
   }
-  $("cYes").addEventListener("click", () => {
-    if (!pending) return;
-    const p = pending;
-    if (beepFailed) apito(true);
-    regs.push({ turma: p.turma, codigo: p.codigo, data: hojeISO(), hora: new Date().toTimeString().slice(0,8) });
-    save(); render(); toast("Presença registrada: " + p.codigo + " · " + p.turma, "ok");
-    retomar();
-  });
+  function retomar(){
+    pending = null; $("card").hidden = true; $("bottombar").hidden = false;
+    $("target").classList.remove("hit");
+    if (stream) { $("hintcam").hidden = false; video.play().catch(() => {}); scanning = true; loop(); }
+    else { still.hidden = true; $("start").hidden = false; }
+  }
+  $("cYes").addEventListener("click", () => { if (pending) registrar(pending); retomar(); });
   $("cNo").addEventListener("click", retomar);
-  $("camBtn").addEventListener("click", abrirCamera);
+  $("goBtn").addEventListener("click", iniciar);
 
-  // ---- foto (quando a câmera ao vivo não é liberada) ----
-  const photo = document.createElement("canvas");
-  $("photoBtn").addEventListener("click", () => { unlockAudio(); $("foto").click(); });
+  function registrar(p){
+    const r = { id: uid(), turma: p.turma, codigo: p.codigo, data: hojeISO(), hora: new Date().toTimeString().slice(0, 8), sent: false };
+    regs.push(r); store(K.regs, regs);
+    queue.push({ op: "add", reg: { id: r.id, turma: r.turma, codigo: r.codigo, data: r.data, hora: r.hora } }); store(K.queue, queue);
+    toast("✓ " + p.codigo + " · " + p.turma, "ok", 1400);
+    render(); enviar();
+  }
+
+  // ---------- foto (reserva) ----------
+  $("photoBtn").addEventListener("click", () => { audioOn(); $("foto").click(); });
   $("foto").addEventListener("change", e => {
-    const file = e.target.files && e.target.files[0]; e.target.value = "";
-    if (!file) return;
-    if (!detector && typeof jsQR !== "function") { toast("O leitor não carregou. Verifique a internet e recarregue a página.", "err"); return; }
+    const file = e.target.files && e.target.files[0]; e.target.value = ""; if (!file) return;
     const img = new Image(), url = URL.createObjectURL(file);
     img.onload = async () => {
-      let txt = null;
-      try {
-        // foto limitada a 2000 px: o iPhone trava com imagens muito grandes no canvas
-        const s = Math.min(1, 2000 / Math.max(img.width, img.height));
-        photo.width = Math.round(img.width * s); photo.height = Math.round(img.height * s);
-        photo.getContext("2d").drawImage(img, 0, 0, photo.width, photo.height);
-        URL.revokeObjectURL(url);
-        toast("Lendo a foto…", "warn");
-        await new Promise(r => setTimeout(r, 30));
-        txt = await decodeCanvas(photo);
-      } catch(err) { URL.revokeObjectURL(url); apito(false); toast("Deu erro ao ler a foto. Recarregue a página e tente de novo.", "err"); return; }
-      const src = photo;
-      const found = txt && parse(txt);
-      if (!found) { apito(false); toast("Não achei o QR Code. Fotografe um por vez, mais de perto, sem reflexo de luz na tela ou no papel.", "err"); return; }
-      $("toast").hidden = true;
-      still.width = src.width; still.height = src.height; still.getContext("2d").drawImage(src, 0, 0);
-      $("idle").hidden = true; still.hidden = false; $("frame").hidden = false; $("frame").classList.add("hit");
-      perguntar(found);
+      const s = Math.min(1, 1600 / Math.max(img.width, img.height));
+      crop.width = Math.round(img.width * s); crop.height = Math.round(img.height * s);
+      cctx.drawImage(img, 0, 0, crop.width, crop.height); URL.revokeObjectURL(url);
+      let txt = await decodeCrop();
+      if (!txt && typeof jsQR === "function") { const r = jsQR(cctx.getImageData(0, 0, crop.width, crop.height).data, crop.width, crop.height, { inversionAttempts: "attemptBoth" }); txt = r && r.data; }
+      const p = txt && parse(txt);
+      if (!p) { apito(false); toast("Não achei o QR Code. Tente mais de perto.", "err", 3000); return; }
+      still.width = crop.width; still.height = crop.height; still.getContext("2d").drawImage(crop, 0, 0);
+      still.hidden = false; $("start").hidden = true; achou(p);
     };
-    img.onerror = () => { URL.revokeObjectURL(url); toast("Não consegui abrir essa imagem.", "err"); };
     img.src = url;
   });
 
+  // ---------- planilha ----------
+  let sending = false, retryT = null;
+  function pill(){
+    const p = $("pill"), n = queue.length;
+    p.className = "pill " + (!sheetUrl ? "off" : n ? "wait" : "ok");
+    $("pillText").textContent = !sheetUrl ? "Sem planilha" : n ? n + " na fila" : "Planilha em dia";
+  }
+  async function enviar(){
+    pill();
+    if (!sheetUrl || sending || !queue.length) return;
+    if (navigator.onLine === false) { agendar(); return; }
+    sending = true;
+    const lote = queue.slice(0, 50);
+    try {
+      const resp = await fetch(sheetUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ops: lote }), redirect: "follow" });
+      const j = await resp.json();
+      if (!j || !j.ok) throw new Error((j && j.erro) || "resposta inválida");
+      const feitos = new Set(lote.map(o => o.op === "add" ? "a" + o.reg.id : "d" + o.id));
+      queue = queue.filter(o => !feitos.has(o.op === "add" ? "a" + o.reg.id : "d" + o.id)); store(K.queue, queue);
+      const ids = new Set(lote.filter(o => o.op === "add").map(o => o.reg.id));
+      regs.forEach(r => { if (ids.has(r.id)) r.sent = true; }); store(K.regs, regs);
+      sending = false; render(); pill();
+      if (queue.length) enviar();
+    } catch(e) {
+      sending = false; pill(); agendar();
+    }
+  }
+  function agendar(){ clearTimeout(retryT); retryT = setTimeout(enviar, 15000); }
+  window.addEventListener("online", enviar);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) enviar(); });
+
+  function status(msg, kind){ const s = $("setStatus"); s.textContent = msg; s.className = "status " + kind; s.hidden = false; }
+  $("sheetUrl").value = sheetUrl;
+  $("sheetUrl").addEventListener("change", () => { sheetUrl = $("sheetUrl").value.trim(); store(K.url, sheetUrl); pill(); enviar(); });
+  $("testBtn").addEventListener("click", async () => {
+    sheetUrl = $("sheetUrl").value.trim(); store(K.url, sheetUrl); pill();
+    if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(sheetUrl)) { status("Cole o endereço que termina em /exec, copiado da implantação do Apps Script.", "err"); return; }
+    status("Testando…", "warn");
+    try { const r = await fetch(sheetUrl + (sheetUrl.includes("?") ? "&" : "?") + "teste=1", { redirect: "follow" }); const j = await r.json();
+          if (j && j.ok) { status("Conectado à planilha" + (j.planilha ? " \"" + j.planilha + "\"" : "") + ".", "ok"); enviar(); } else throw 0; }
+    catch(e) { status("Não consegui falar com a planilha. Confira o endereço e se a implantação está liberada para \"Qualquer pessoa\".", "err"); }
+  });
+  $("syncBtn").addEventListener("click", () => { if (!sheetUrl) { status("Cole o endereço da planilha primeiro.", "err"); return; } if (!queue.length) { status("Nada na fila. Está tudo na planilha.", "ok"); return; } status("Enviando " + queue.length + "…", "warn"); enviar().then(() => status(queue.length ? "Ainda sem conexão. Tento de novo sozinho." : "Tudo enviado.", queue.length ? "warn" : "ok")); });
+  $("askConfirm").checked = askConfirm;
+  $("askConfirm").addEventListener("change", () => { askConfirm = $("askConfirm").checked; store(K.ask, askConfirm); });
+
+  // ---------- painéis ----------
+  function abrir(id){ $(id).hidden = false; scanning = false; }
+  function fechar(el){ el.hidden = true; if (stream && $("card").hidden) { scanning = true; loop(); } }
+  document.querySelectorAll(".sheetwrap").forEach(w => {
+    w.addEventListener("click", e => { if (e.target === w || e.target.hasAttribute("data-close")) fechar(w); });
+  });
+  $("listBtn").addEventListener("click", () => { render(); abrir("listSheet"); });
+  $("typeBtn").addEventListener("click", () => { abrir("typeSheet"); setTimeout(() => $("manual").focus(), 50); });
+  $("setBtn").addEventListener("click", () => abrir("setSheet"));
   $("manualForm").addEventListener("submit", e => {
-    e.preventDefault(); unlockAudio();
+    e.preventDefault(); audioOn();
     const p = parse($("manual").value); $("manual").value = "";
-    if (p) perguntar(p);
+    if (!p) return;
+    $("typeSheet").hidden = true;
+    if (jaTem(p)) { apito(false); toast(p.codigo + " já está na lista de hoje.", "warn", 2500); }
+    else { apito(true); registrar(p); }
+    if (stream && $("card").hidden) { scanning = true; loop(); }
   });
 
-  // ---- lista ----
   function render(){
     const lista = doDia();
-    $("count").firstChild.nodeValue = String(lista.length);
+    $("count").textContent = lista.length;
     const box = $("groups"); box.textContent = "";
-    const ok = lista.length > 0;
-    $("exportBtn").disabled = $("copyBtn").disabled = !ok;
-    const dados = ok ? lista : [
-      { turma: "1M01-MCN", codigo: "A001", hora: "07:02:15" },
-      { turma: "1M01-MCN", codigo: "A014", hora: "07:03:40" },
-      { turma: "1M01-LCH", codigo: "B007", hora: "07:04:52" } ];
-    if (!ok) {
-      const p = document.createElement("p"); p.className = "hint";
-      p.innerHTML = '<span class="badge">Exemplo</span> Assim fica a lista. Some quando você confirmar a primeira presença.';
-      box.appendChild(p);
-    }
+    if (!lista.length) { const p = document.createElement("p"); p.className = "empty"; p.textContent = "Ninguém registrado hoje ainda."; box.appendChild(p); }
     const turmas = {};
-    dados.forEach(r => (turmas[r.turma] = turmas[r.turma] || []).push(r));
+    lista.forEach(r => (turmas[r.turma] = turmas[r.turma] || []).push(r));
     Object.keys(turmas).sort().forEach(t => {
-      const g = document.createElement("div"); if (!ok) g.className = "example";
+      const g = document.createElement("div"); g.className = "group";
       const h = document.createElement("h3"); h.textContent = t;
       const c = document.createElement("span"); c.textContent = turmas[t].length + (turmas[t].length === 1 ? " aluno" : " alunos"); h.appendChild(c);
       const ul = document.createElement("ul");
-      turmas[t].sort((a,b) => a.hora.localeCompare(b.hora)).forEach((r,i) => {
+      turmas[t].sort((a, b) => a.hora.localeCompare(b.hora)).forEach((r, i) => {
         const li = document.createElement("li");
-        const n = document.createElement("span"); n.className = "n"; n.textContent = i+1;
+        const n = document.createElement("span"); n.className = "n"; n.textContent = i + 1;
         const cd = document.createElement("span"); cd.className = "code"; cd.textContent = r.codigo;
-        const tm = document.createElement("span"); tm.className = "time"; tm.textContent = r.hora;
-        li.append(n, cd, tm);
-        if (ok) {
-          const b = document.createElement("button"); b.type = "button"; b.className = "del"; b.textContent = "Tirar";
-          b.addEventListener("click", () => {
-            if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = "Confirmar"; setTimeout(() => { b.classList.remove("sure"); b.textContent = "Tirar"; }, 3000); return; }
-            regs = regs.filter(x => x !== r); save(); render(); toast(r.codigo + " saiu da lista.", "warn");
-          });
-          li.appendChild(b);
-        } else li.appendChild(document.createElement("span"));
-        ul.appendChild(li);
+        const tm = document.createElement("span"); tm.className = "time"; tm.textContent = r.hora.slice(0, 5);
+        const sy = document.createElement("span"); sy.className = "sync" + (r.sent ? " sent" : ""); sy.title = r.sent ? "Na planilha" : "Esperando envio";
+        const b = document.createElement("button"); b.className = "del"; b.textContent = "Tirar";
+        b.addEventListener("click", () => {
+          if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = "Confirmar"; setTimeout(() => { b.classList.remove("sure"); b.textContent = "Tirar"; }, 3000); return; }
+          regs = regs.filter(x => x !== r); store(K.regs, regs);
+          const ia = queue.findIndex(o => o.op === "add" && o.reg.id === r.id);
+          if (ia >= 0) queue.splice(ia, 1); else queue.push({ op: "del", id: r.id });
+          store(K.queue, queue); render(); enviar(); toast(r.codigo + " saiu da lista.", "warn");
+        });
+        li.append(n, cd, tm, sy, b); ul.appendChild(li);
       });
       g.append(h, ul); box.appendChild(g);
     });
+    $("exportBtn").disabled = $("copyBtn").disabled = !lista.length;
+    pill();
   }
 
   function csv(){
-    const l = doDia().slice().sort((a,b) => a.turma.localeCompare(b.turma) || a.hora.localeCompare(b.hora));
+    const l = doDia().slice().sort((a, b) => a.turma.localeCompare(b.turma) || a.hora.localeCompare(b.hora));
     return "turma;codigo;data;hora\n" + l.map(r => [r.turma, r.codigo, r.data, r.hora].join(";")).join("\n") + "\n";
   }
-  function showBox(){ const b = $("csvBox"); b.value = csv(); b.hidden = false; b.focus(); b.select(); }
-  $("copyBtn").addEventListener("click", () => {
-    try { navigator.clipboard.writeText(csv()).then(() => toast("CSV copiado. Cole numa planilha.", "ok"), () => { showBox(); toast("Selecionei o texto abaixo. Copie e cole na planilha.", "warn"); }); }
-    catch(e) { showBox(); toast("Selecionei o texto abaixo. Copie e cole na planilha.", "warn"); }
+  $("exportBtn").addEventListener("click", () => {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + csv()], { type: "text/csv" }));
+    a.download = "chamada_" + hojeISO() + ".csv"; document.body.appendChild(a); a.click(); a.remove();
   });
-  let downloads = null;
-  try { window.claude && window.claude.use && window.claude.use("downloads").then(d => { downloads = d; }).catch(() => {}); } catch(e) {}
-  $("exportBtn").addEventListener("click", async () => {
-    const nome = "chamada_" + hojeISO() + ".csv";
-    if (downloads) {
-      try { await downloads.save({ filename: nome, data: new Blob(["﻿" + csv()]) }); toast("Planilha salva: " + nome, "ok"); return; }
-      catch(e) { if (e && (e.code === "declined" || e.code === "rate_limited")) return; }
-    } else if (!window.claude) {
-      // fora do Claude (ex.: GitHub Pages): download comum
-      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + csv()], { type: "text/csv" })); a.download = nome;
-      document.body.appendChild(a); a.click(); a.remove(); toast("Planilha baixada: " + nome, "ok"); return;
-    }
-    showBox(); toast("Não deu pra baixar aqui. Copie o texto abaixo e cole numa planilha.", "warn");
+  $("copyBtn").addEventListener("click", () => {
+    const box = $("csvBox");
+    const fb = () => { box.value = csv(); box.hidden = false; box.focus(); box.select(); toast("Selecionei o texto. Copie e cole na planilha.", "warn", 3000); };
+    try { navigator.clipboard.writeText(csv()).then(() => toast("CSV copiado.", "ok"), fb); } catch(e) { fb(); }
   });
 
-  // virou o dia com a página aberta: atualiza data e lista
+  // ---------- início ----------
+  $("today").textContent = hojeTxt();
   setInterval(() => { const t = hojeTxt(); if ($("today").textContent !== t) { $("today").textContent = t; render(); } }, 60000);
-  render();
+  render(); enviar();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
 </script>
+</body>
+</html>

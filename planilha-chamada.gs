@@ -16,6 +16,12 @@
  * Não duplica: mesma data + matrícula (ou mesmo ID, no reenvio do celular) → vale a primeira.
  * Matrícula não cadastrada é gravada mesmo assim: Turma = "NÃO CADASTRADA", linha em amarelo.
  * Para ser rápido com muitas linhas, só confere as últimas LINHAS_RECENTES de Presenças.
+ *
+ * Ações: teste, enviar, alunos, status, finalizar.
+ *   alunos     todos os alunos (inclusive transferidos, s = "Transferido").
+ *   status     por turma, numa data: total de ativos, presentes, ausentes e se está finalizada.
+ *   finalizar  grava a turma em Chamadas; se já estava finalizada naquela data, não duplica.
+ * Só enviar e finalizar escrevem, e só elas usam a trava; as demais só leem e não esperam ninguém.
  */
 
 const ABA_ALUNOS = 'Alunos';
@@ -73,32 +79,55 @@ function gerarChave_() {
 
 // ---------------------------------------------------------------- requisições
 
+const ACOES_ESCRITA = ['enviar', 'finalizar'];
+
 function doPost(e) {
+  try {
+    const dados = JSON.parse(e.postData.contents);
+    if (ACOES_ESCRITA.indexOf(dados.acao) >= 0) {
+      return comTrava_(() => tratar_(dados, true));
+    }
+    // Só leitura: sem trava. Só trava se faltar criar alguma aba.
+    if (!abasProntas_()) comTrava_(garantirAbas_);
+    return tratar_(dados, false);
+  } catch (err) {
+    return responder_({ ok: false, erro: String(err) });
+  }
+}
+
+function comTrava_(fn) {
   const trava = LockService.getScriptLock();
   trava.waitLock(20000);
   try {
-    const dados = JSON.parse(e.postData.contents);
-    garantirAbas_();
-
-    const professor = professorDaChave_(dados.chave);
-    if (professor === null) return responder_({ ok: false, erro: 'chave' });
-
-    switch (dados.acao) {
-      case 'teste':
-        return responder_({
-          ok: true,
-          planilha: SpreadsheetApp.getActiveSpreadsheet().getName(),
-          professor: professor
-        });
-      case 'enviar':
-        return enviar_(dados.ops || [], professor);
-      default:
-        return responder_({ ok: false, erro: 'acao' });
-    }
-  } catch (err) {
-    return responder_({ ok: false, erro: String(err) });
+    return fn();
   } finally {
     trava.releaseLock();
+  }
+}
+
+function tratar_(dados, escrita) {
+  if (escrita) garantirAbas_();
+
+  const professor = professorDaChave_(dados.chave);
+  if (professor === null) return responder_({ ok: false, erro: 'chave' });
+
+  switch (dados.acao) {
+    case 'teste':
+      return responder_({
+        ok: true,
+        planilha: SpreadsheetApp.getActiveSpreadsheet().getName(),
+        professor: professor
+      });
+    case 'enviar':
+      return enviar_(dados.ops || [], professor);
+    case 'alunos':
+      return alunos_();
+    case 'status':
+      return status_(dados.data);
+    case 'finalizar':
+      return finalizar_(dados.turma, dados.data, professor);
+    default:
+      return responder_({ ok: false, erro: 'acao' });
   }
 }
 
@@ -166,6 +195,105 @@ function enviar_(ops, professor) {
     }
   }
   return responder_({ ok: true, gravadas: novas.length, apagadas: apagadas });
+}
+
+// ---------------------------------------------------------------- ação "alunos"
+
+function alunos_() {
+  return responder_({ ok: true, alunos: lerAlunos_() });
+}
+
+// Todos os alunos, inclusive transferidos. Matrícula repetida: vale a primeira.
+function lerAlunos_() {
+  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABA_ALUNOS);
+  const ultima = aba.getLastRow();
+  if (ultima < 2) return [];
+  const vistos = new Set();
+  const lista = [];
+  aba.getRange(2, 1, ultima - 1, 4).getValues().forEach(l => {
+    const m = String(l[1]).trim();
+    if (!m || vistos.has(m.toUpperCase())) return;
+    vistos.add(m.toUpperCase());
+    const transferido = String(l[3]).trim().toUpperCase() === 'TRANSFERIDO';
+    lista.push({ m: m, n: String(l[0]).trim(), t: String(l[2]).trim(), s: transferido ? 'Transferido' : '' });
+  });
+  return lista;
+}
+
+// ---------------------------------------------------------------- ação "status"
+
+function status_(iso) {
+  if (!dataValida_(iso)) return responder_({ ok: false, erro: 'data' });
+  const data = formatarData_(iso);
+  const planilha = SpreadsheetApp.getActiveSpreadsheet();
+
+  // matrículas com presença nessa data
+  const presentes = new Set();
+  lerRecentes_(planilha.getSheetByName(ABA_PRESENCAS)).linhas.forEach(l => {
+    if (dataTexto_(l[1]) === data) presentes.add(String(l[3]).trim().toUpperCase());
+  });
+
+  const finalizadas = finalizadasDaData_(data);
+
+  // agrupa por turma (sem diferenciar maiúsculas)
+  const turmas = {};
+  lerAlunos_().forEach(a => {
+    if (!a.t) return;
+    const k = a.t.toUpperCase();
+    if (!turmas[k]) turmas[k] = { nome: a.t, alunos: [] };
+    turmas[k].alunos.push(a);
+  });
+
+  const resultado = Object.keys(turmas).sort().map(k => {
+    const g = turmas[k];
+    const fin = finalizadas[k] || null;
+    const ativos = g.alunos.filter(a => a.s !== 'Transferido');
+    const comPresenca = g.alunos.some(a => presentes.has(a.m.toUpperCase())); // transferido também vale
+    const semChamada = !comPresenca && !fin;
+    const presentesAtivos = ativos.filter(a => presentes.has(a.m.toUpperCase())).length;
+    return {
+      turma: g.nome,
+      total: ativos.length,
+      presentes: presentesAtivos,
+      sem_chamada: semChamada,
+      ausentes: semChamada ? [] : ativos.filter(a => !presentes.has(a.m.toUpperCase())).map(a => ({ m: a.m, n: a.n })),
+      finalizada: fin
+    };
+  });
+  return responder_({ ok: true, data: iso, turmas: resultado });
+}
+
+// turma (maiúscula) -> { hora, professor }, das chamadas finalizadas na data
+function finalizadasDaData_(data) {
+  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABA_CHAMADAS);
+  const mapa = {};
+  lerRecentes_(aba).linhas.forEach(l => {
+    if (dataTexto_(l[0]) !== data) return;
+    const k = String(l[1]).trim().toUpperCase();
+    if (!mapa[k]) mapa[k] = { hora: horaTexto_(l[3]), professor: String(l[2]).trim() };
+  });
+  return mapa;
+}
+
+// ---------------------------------------------------------------- ação "finalizar"
+
+function finalizar_(turma, iso, professor) {
+  if (!dataValida_(iso)) return responder_({ ok: false, erro: 'data' });
+  const pedida = String(turma || '').trim().toUpperCase();
+  const alvo = lerAlunos_().filter(a => a.t.toUpperCase() === pedida)[0];
+  if (!pedida || !alvo) return responder_({ ok: false, erro: 'turma' });
+
+  const data = formatarData_(iso);
+  const existente = finalizadasDaData_(data)[pedida];
+  if (existente) {
+    return responder_({ ok: true, ja_finalizada: true, professor: existente.professor, hora: existente.hora });
+  }
+
+  const hora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'HH:mm:ss');
+  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABA_CHAMADAS);
+  aba.getRange(aba.getLastRow() + 1, 1, 1, CAB_CHAMADAS.length)
+    .setValues([["'" + data, alvo.t, professor, "'" + hora]]);
+  return responder_({ ok: true, ja_finalizada: false, professor: professor, hora: hora });
 }
 
 // matrícula (maiúscula) -> { nome, turma }
@@ -260,6 +388,30 @@ function lerRecentes_(aba) {
 function chave_(data, matricula) {
   if (data instanceof Date) data = Utilities.formatDate(data, Session.getScriptTimeZone(), 'dd/MM/yyyy');
   return [data, matricula].map(v => String(v).trim().toUpperCase()).join('|');
+}
+
+// Valor de célula de data -> "dd/MM/yyyy" (a célula pode vir como texto ou como Date).
+function dataTexto_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  return String(v).trim();
+}
+
+function horaTexto_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'HH:mm:ss');
+  return String(v).trim();
+}
+
+function dataValida_(iso) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''));
+}
+
+// Todas as abas existem e Presenças já está no formato novo? (Se não, garantirAbas_ resolve.)
+function abasProntas_() {
+  const planilha = SpreadsheetApp.getActiveSpreadsheet();
+  const nomes = [ABA_ALUNOS, ABA_PROFESSORES, ABA_PRESENCAS, ABA_CHAMADAS];
+  if (nomes.some(n => !planilha.getSheetByName(n))) return false;
+  const pres = planilha.getSheetByName(ABA_PRESENCAS);
+  return String(pres.getRange(1, 1, 1, Math.min(9, pres.getMaxColumns())).getValues()[0]).indexOf('Código') < 0;
 }
 
 function formatarData_(iso) {

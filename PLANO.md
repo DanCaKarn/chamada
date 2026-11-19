@@ -23,9 +23,18 @@ Toda conversa é um **POST** para o `/exec` com um JSON que sempre leva a `chave
 |---|---|---|
 | `teste` | `chave` | `ok`, nome da planilha, **nome do professor** |
 | `enviar` | `ops`: `add` `{id, matricula, data, hora, forma}` / `del` `{id}` | `ok`, gravadas, apagadas |
-| `alunos` | — | lista `[{m: matrícula, n: nome, t: turma, s: situação}]` |
-| `status` | `data` | por turma: total, presentes, ausentes (com nomes), finalizada (hora e professor) |
-| `finalizar` | `turma`, `data` | `ok` |
+| `alunos` | — | `ok`, `alunos: [{m: matrícula, n: nome, t: turma, s: situação}]` — **todos**, inclusive transferidos (`s` = `"Transferido"`, senão `""`), para o app poder avisar na leitura |
+| `status` | `data` (`AAAA-MM-DD`) | `ok`, `data`, `turmas: [{turma, total, presentes, sem_chamada, ausentes: [{m, n}], finalizada}]` |
+| `finalizar` | `turma`, `data` | `ok`, `ja_finalizada`, `professor`, `hora` |
+
+- `status`: `total` = alunos **ativos** da turma (transferidos não contam em nada). `finalizada` = `null` ou `{hora, professor}`.
+  `sem_chamada` = `true` só se ninguém da turma tem presença na data **e** a turma não está finalizada
+  (então `ausentes` vem vazio). Turma finalizada sem presença nenhuma (ex.: excursão): `sem_chamada` = `false`
+  e todos os ativos entram em `ausentes`.
+- `finalizar` **não duplica**: se a turma já estava finalizada na data, não grava outra linha e responde
+  `ja_finalizada: true` com o professor e a hora da primeira vez.
+- Erros: `chave` (inválida), `acao` (desconhecida), `data` (formato errado), `turma` (não existe na aba Alunos).
+- Só `enviar` e `finalizar` escrevem e usam a trava do script; `teste`, `alunos` e `status` só leem e não esperam.
 
 - `forma`: `"QR"` ou `"Digitado"`.
 - A **turma** de cada presença é descoberta pela planilha (aba Alunos) no momento em que ela recebe
@@ -78,7 +87,7 @@ com chave errada (erro); a mesma matrícula 2 vezes (a 2ª é ignorada); uma mat
 
 ---
 
-### [ ] Etapa 2: Planilha: alunos, status e finalizar (só o script)
+### [x] Etapa 2: Planilha: alunos, status e finalizar (só o script)
 **Pedido para o Claude Code:**
 > Etapa 2 do PLANO.md: no script, implementar as ações `alunos`, `status` e `finalizar` conforme o contrato.
 > Em `status`, ausentes = alunos ativos da turma sem presença na data; transferidos não contam.

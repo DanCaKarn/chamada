@@ -56,7 +56,7 @@ Toda conversa é um **POST** para o `/exec` com um JSON que sempre leva a `chave
 
 ---
 
-### [ ] Etapa 1: Planilha: abas novas e chave por professor (só o script)
+### [x] Etapa 1: Planilha: abas novas e chave por professor (só o script)
 **Pedido para o Claude Code:**
 > Etapa 1 do PLANO.md, só no planilha-chamada.gs:
 > - Criar (se não existirem) as abas Alunos, Professores e Chamadas com os cabeçalhos do plano.

@@ -1,6 +1,6 @@
 # Chamada QR
 
-App de lista de presença. Lê o QR Code das carteirinhas, que contém **só a matrícula** do aluno (ex.: `A017`), e envia as presenças para uma planilha Google via Apps Script (`planilha-chamada.gs`).
+App de lista de presença. Lê o QR Code das carteirinhas, que contém **só a matrícula** do aluno (ex.: `2023001234`), e envia as presenças para uma planilha Google via Apps Script (`planilha-chamada.gs`).
 
 ## Plano e contrato
 

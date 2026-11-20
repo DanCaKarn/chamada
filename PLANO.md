@@ -118,7 +118,7 @@ uma leitura chega na planilha com a coluna Professor preenchida.
 
 ---
 
-### [ ] Etapa 4: App: matrícula e nomes na leitura
+### [x] Etapa 4: App: matrícula e nomes na leitura
 **Pedido para o Claude Code:**
 > Etapa 4 do PLANO.md:
 > - Ao tocar em "Iniciar leitura", baixar a lista com a ação `alunos` e guardar SÓ EM MEMÓRIA (nunca em

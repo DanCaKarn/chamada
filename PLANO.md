@@ -103,7 +103,7 @@ sem leituras vem como "sem chamada".
 
 ---
 
-### [ ] Etapa 3: App: configuração por QR Code e chave
+### [x] Etapa 3: App: configuração por QR Code e chave
 **Pedido para o Claude Code:**
 > Etapa 3 do PLANO.md:
 > - Criar a página configurar.html (para o coordenador): campos para o /exec e a chave → mostra na tela um QR Code
@@ -174,8 +174,14 @@ finalizar → fica 🟢 nos dois.
 > (avisando se sobrar algo), apaga a lista de nomes da memória e mostra "Chamada encerrada ✅ Pode fechar o app."
 > Nos Ajustes: "Encerrar sozinho depois de" 2 / 5 / 10 / 30 min minimizado (padrão 5, sem opção "Nunca").
 > Implementar guardando o horário em que o app foi para segundo plano (visibilitychange) e comparando na volta.
+>
+> Também nesta etapa: botão de som 🔊/🔇 no topo, ao lado da engrenagem. Som desligado = sem apito, mas mantém
+> a vibração e o retorno visual (toast, cartão e cor do alvo). A escolha fica salva no celular.
+> Reorganizar o topo para caber os dois botões novos (Encerrar e Som) numa tela estreita de celular
+> (ex.: iPhone SE, 320 px): data/subtítulo e indicador da planilha sem estourar, botões com área de toque de pelo menos 42 px.
 
-**Como testar:** encerrar e ver que os nomes somem (reabrir baixa de novo); com 2 min, minimizar por 3 min e voltar.
+**Como testar:** encerrar e ver que os nomes somem (reabrir baixa de novo); com 2 min, minimizar por 3 min e voltar;
+som desligado: sem apito, com vibração e aviso na tela, e a escolha continua depois de fechar e abrir o app; topo em tela de 320 px sem cortar nada.
 
 ---
 

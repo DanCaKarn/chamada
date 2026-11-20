@@ -139,7 +139,7 @@ desligar a internet antes de abrir e ver que funciona sem nomes.
 
 ---
 
-### [ ] Etapa 5: App: Digitar com matrícula e confirmação
+### [x] Etapa 5: App: Digitar com matrícula e confirmação
 **Pedido para o Claude Code:**
 > Etapa 5 do PLANO.md: o painel Digitar passa a pedir só a matrícula (teclado numérico: inputmode="numeric").
 > Ao buscar, abre o MESMO cartão de confirmação da câmera (nome e turma). Avisos: "Matrícula não encontrada"

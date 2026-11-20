@@ -222,9 +222,9 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       <form class="sheetbody" id="manualForm">
         <div class="field">
           <label for="manual">Matrícula</label>
-          <div class="manualrow"><input type="text" class="mono" id="manual" placeholder="2023001234" autocomplete="off" autocapitalize="characters"><button type="submit">Registrar</button></div>
+          <div class="manualrow"><input type="text" class="mono" id="manual" inputmode="numeric" pattern="[0-9]*" placeholder="2023001234" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="submit">Buscar</button></div>
         </div>
-        <p class="help">Use quando a carteirinha estiver amassada ou sem QR Code. Escreva só a matrícula do aluno: <code>2023001234</code>.</p>
+        <p class="help">Use quando a carteirinha estiver amassada ou sem QR Code. Digite só os números da matrícula: <code>2023001234</code>. Vai aparecer um cartão para você confirmar.</p>
       </form>
     </div>
   </div>
@@ -451,6 +451,10 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     apito(st.tipo === "ok");
     const registra = st.tipo === "ok" || st.tipo === "fora";
     if (!askConfirm && registra) { registrar(p, st.tipo === "fora"); setTimeout(retomar, 550); return; }
+    mostrarCartao(p, st, registra, false);
+  }
+  // cartão de confirmação (câmera e Digitar)
+  function mostrarCartao(p, st, registra, digitado){
     pending = p;
     $("cNomeBox").hidden = !st.aluno; $("cNome").textContent = st.aluno ? st.aluno.n : "";
     $("cCodigo").textContent = p.matricula;
@@ -458,7 +462,9 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     const av = $("cDup");
     av.hidden = st.tipo === "ok";
     av.className = "dup" + (st.tipo === "transferido" ? " err" : "");
-    av.textContent = st.tipo === "transferido" ? "Aluno transferido" : st.tipo === "repetida" ? "Já registrado às " + st.reg.hora.slice(0, 5) : st.tipo === "fora" ? "⚠️ Não está na lista de alunos" : "";
+    av.textContent = st.tipo === "transferido" ? "Aluno transferido" : st.tipo === "repetida" ? "Já registrado às " + st.reg.hora.slice(0, 5) : st.tipo === "fora" ? (digitado ? "Matrícula não encontrada" : "⚠️ Não está na lista de alunos") : "";
+    if (digitado && st.tipo === "fora") av.className = "dup err";
+    $("cNota").textContent = digitado ? "Lista não carregada: confira o número com o aluno" : "Lista de alunos não carregada: mostrando só a matrícula.";
     $("cNota").hidden = !!alunosMem;
     $("cYes").hidden = !registra; $("cNo").textContent = registra ? "Cancelar" : "Ok";
     $("bottombar").hidden = true; $("card").hidden = false;
@@ -644,12 +650,11 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     e.preventDefault(); audioOn();
     const p = parse($("manual").value, "Digitado"); $("manual").value = "";
     if (!p) return;
-    $("typeSheet").hidden = true;
+    $("typeSheet").hidden = true; scanning = false;
     const st = situacao(p); completar(p, st);
-    if (st.tipo === "transferido") { apito(false); toast("Aluno transferido: não foi registrado.", "err", 3000); }
-    else if (st.tipo === "repetida") { apito(false); toast("Já registrado às " + st.reg.hora.slice(0, 5) + ".", "warn", 2500); }
-    else { apito(st.tipo === "ok"); registrar(p, st.tipo === "fora"); }
-    if (stream && $("card").hidden) { scanning = true; loop(); }
+    apito(st.tipo === "ok");
+    // Digitar sempre confirma; matrícula fora da lista (com lista carregada) não registra
+    mostrarCartao(p, st, st.tipo === "ok", true);
   });
 
   const infoDe = r => (alunosMem && alunosMem.get(r.matricula)) || null;

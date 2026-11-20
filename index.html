@@ -116,6 +116,21 @@ li{display:grid;grid-template-columns:1.8rem 1fr auto auto auto;align-items:cent
 .sync.sent{background:var(--ok)}
 .del{padding:5px 10px;font-size:.8rem;font-weight:500;color:var(--muted);border:1px solid var(--line);background:var(--surface);border-radius:10px}
 .del.sure{color:var(--err);border-color:var(--err)}
+.hbtns{display:flex;gap:8px}
+.close:disabled{opacity:.5}
+.aviso{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:.9rem;font-weight:600;margin:0}
+.group{padding:0 14px}
+.thead{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:14px 0;border-radius:0;text-align:left;font-size:1rem}
+.thead .sig{margin-right:8px}
+.thead .ct{font-weight:500;color:var(--muted);font-size:.9rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.det{border-top:1px solid var(--line);padding-bottom:12px}
+.det h4{margin:12px 0 4px;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.det ul.faltam li{display:block;padding:6px 0;border-top:none;font-weight:600}
+.det .vazio{color:var(--muted);font-size:.9rem;margin:4px 0}
+.det .fin{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-weight:600;margin:12px 0 0}
+.det .confirma{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:12px;margin-top:12px;font-weight:600;overflow-wrap:anywhere}
+.det .btns{display:flex;gap:10px;margin-top:12px}
+.det .btns button{flex:1;padding:13px}
 .empty{color:var(--muted);text-align:center;padding:24px 8px}
 .row{display:flex;gap:10px;flex-wrap:wrap}
 .row>button{flex:1 1 140px;background:var(--surface);border:1px solid var(--line);color:var(--fg)}
@@ -202,15 +217,12 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   <!-- painel: lista -->
   <div class="sheetwrap" id="listSheet" hidden>
     <div class="sheet" role="dialog" aria-label="Lista de presença">
-      <div class="sheethead"><h2>Presentes hoje</h2><button class="close" data-close>Fechar</button></div>
+      <div class="sheethead"><h2>Presentes hoje</h2><div class="hbtns"><button class="close" id="refBtn">Atualizar</button><button class="close" data-close>Fechar</button></div></div>
       <div class="sheetbody">
+        <p class="aviso" id="listAviso" hidden></p>
         <div id="groups"></div>
+        <p class="help" id="listQuando"></p>
         <p class="help"><span class="sync" style="display:inline-block"></span> esperando envio &nbsp; <span class="sync sent" style="display:inline-block"></span> já está na planilha</p>
-        <div class="row">
-          <button id="exportBtn">Baixar CSV</button>
-          <button id="copyBtn">Copiar CSV</button>
-        </div>
-        <textarea id="csvBox" hidden readonly></textarea>
       </div>
     </div>
   </div>
@@ -547,7 +559,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       const ids = new Set(lote.filter(o => o.op === "add").map(o => o.reg.id));
       regs.forEach(r => { if (ids.has(r.id)) r.sent = true; }); store(K.regs, regs);
       sending = false; render(); pill();
-      if (queue.length) enviar();
+      if (queue.length) enviar(); else if (listaAberta()) atualizarStatus();
     } catch(e) {
       sending = false; pill(); agendar();
     }
@@ -560,6 +572,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   function guardarCampos(){
     sheetUrl = $("sheetUrl").value.trim(); sheetKey = $("sheetKey").value.trim();
     store(K.url, sheetUrl); store(K.key, sheetKey); chaveRuim = false; pill(); atualizarInicio();
+    statusMem = null; statusErro = null; if (listaAberta()) atualizarStatus();
     alunosMem = null; render(); if (tentouAlunos) baixarAlunos();   // outra planilha ou chave: lista nova
   }
   $("sheetUrl").value = sheetUrl; $("sheetKey").value = sheetKey;
@@ -639,11 +652,15 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 
   // ---------- painéis ----------
   function abrir(id){ $(id).hidden = false; scanning = false; }
-  function fechar(el){ el.hidden = true; if (stream && $("card").hidden) { scanning = true; loop(); } }
+  function fechar(el){ el.hidden = true; if (el.id === "listSheet") pararLista(); if (stream && $("card").hidden) { scanning = true; loop(); } }
   document.querySelectorAll(".sheetwrap").forEach(w => {
     w.addEventListener("click", e => { if (e.target === w || e.target.hasAttribute("data-close")) fechar(w); });
   });
-  $("listBtn").addEventListener("click", () => { render(); abrir("listSheet"); });
+  $("listBtn").addEventListener("click", () => {
+    abrir("listSheet"); turmaAberta = ""; confirmando = null; render(); atualizarStatus();
+    clearInterval(statusT); statusT = setInterval(() => { if (!document.hidden && !finalizando) atualizarStatus(); }, 30000);
+  });
+  $("refBtn").addEventListener("click", () => atualizarStatus());
   $("typeBtn").addEventListener("click", () => { abrir("typeSheet"); setTimeout(() => $("manual").focus(), 50); });
   $("setBtn").addEventListener("click", () => { setModo(false); abrir("setSheet"); });
   $("manualForm").addEventListener("submit", e => {
@@ -659,56 +676,141 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 
   const infoDe = r => (alunosMem && alunosMem.get(r.matricula)) || null;
   const turmaDe = r => { const a = infoDe(r); return a && a.t ? a.t : r.turma; };   // turma e nome: da memória, quando houver
+  // ---------- painel Lista por turma ----------
+  // Nomes dos ausentes vêm do status e ficam SÓ nesta variável (memória): nunca em localStorage.
+  let statusMem = null, statusErro = null, statusP = null, statusT = null, turmaAberta = "", confirmando = null, finalizando = false;
+  const listaAberta = () => !$("listSheet").hidden;
+  const chaveT = t => String(t || "").trim().toUpperCase();
+  function pararLista(){ clearInterval(statusT); statusT = null; statusMem = null; statusErro = null; confirmando = null; }
+  function atualizarStatus(){
+    if (statusP) return statusP;
+    if (!configurado() || chaveRuim || navigator.onLine === false) {
+      statusMem = null; statusErro = !configurado() ? "config" : chaveRuim ? "chave" : "offline"; render(); return Promise.resolve();
+    }
+    statusP = (async () => {
+      let ok = null, erro = null;
+      try {
+        const j = await chamar({ acao: "status", data: hojeISO() });
+        if (j && j.erro === "chave") { chaveRuim = true; pill(); erro = "chave"; }
+        else if (j && j.ok && Array.isArray(j.turmas)) ok = j.turmas;
+        else erro = "offline";
+      } catch(e) { erro = "offline"; }
+      statusP = null;
+      if (!listaAberta()) return;
+      if (ok) { statusMem = { turmas: ok, quando: new Date() }; statusErro = null; } else { statusMem = null; statusErro = erro; }
+      render();
+    })();
+    render();
+    return statusP;
+  }
+  const AVISOS = { offline: "Sem conexão: mostrando só este celular", chave: "A planilha não aceitou a chave: mostrando só este celular", config: "Celular sem configuração: mostrando só este celular" };
+
+  function linhaLida(r, i){
+    const li = document.createElement("li");
+    const n = document.createElement("span"); n.className = "n"; n.textContent = i + 1;
+    const cd = document.createElement("span"); cd.className = "code";
+    const ia0 = infoDe(r);
+    if (ia0 && ia0.n) { const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = ia0.n; cd.appendChild(nm); }
+    cd.appendChild(document.createTextNode(r.matricula));
+    const tm = document.createElement("span"); tm.className = "time"; tm.textContent = r.hora.slice(0, 5);
+    const sy = document.createElement("span"); sy.className = "sync" + (r.sent ? " sent" : ""); sy.title = r.sent ? "Na planilha" : "Esperando envio";
+    const b = document.createElement("button"); b.className = "del"; b.textContent = "Tirar";
+    b.addEventListener("click", () => {
+      if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = "Confirmar"; setTimeout(() => { b.classList.remove("sure"); b.textContent = "Tirar"; }, 3000); return; }
+      regs = regs.filter(x => x !== r); store(K.regs, regs);
+      const ia = queue.findIndex(o => o.op === "add" && o.reg.id === r.id);
+      if (ia >= 0) queue.splice(ia, 1); else queue.push({ op: "del", id: r.id });
+      store(K.queue, queue); render(); enviar(); toast(r.matricula + " saiu da lista.", "warn");
+    });
+    li.append(n, cd, tm, sy, b);
+    return li;
+  }
+  const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; };
+  const horaFin = f => String(f.hora || "").slice(0, 5);
+
+  function detalhe(it, k){
+    const d = el("div", "det"), st = it.st;
+    if (st) {
+      if (st.sem_chamada) { d.appendChild(el("h4", "", "Faltam")); d.appendChild(el("p", "vazio", "Ninguém foi lido nesta turma hoje.")); }
+      else {
+        d.appendChild(el("h4", "", "Faltam (" + st.ausentes.length + ")"));
+        if (!st.ausentes.length) d.appendChild(el("p", "vazio", "Ninguém falta."));
+        else { const ul = el("ul", "faltam"); st.ausentes.forEach(a => ul.appendChild(el("li", "", a.n || a.m))); d.appendChild(ul); }
+      }
+    }
+    d.appendChild(el("h4", "", "Lidos neste celular (" + it.regs.length + ")"));
+    if (!it.regs.length) d.appendChild(el("p", "vazio", "Nenhuma leitura neste celular."));
+    else { const ul = el("ul"); it.regs.slice().sort((a, b) => a.hora.localeCompare(b.hora)).forEach((r, i) => ul.appendChild(linhaLida(r, i))); d.appendChild(ul); }
+    if (st && st.finalizada) d.appendChild(el("p", "fin", "Já finalizada às " + horaFin(st.finalizada) + " por " + (st.finalizada.professor || "?")));
+    else if (st && confirmando === k) {
+      const n = st.ausentes.length;
+      d.appendChild(el("div", "confirma", n ? "Faltam " + n + ": " + st.ausentes.map(a => a.n || a.m).join(", ") + ". Finalizar mesmo assim?" : "Todos presentes. Finalizar a chamada?"));
+      const bs = el("div", "btns");
+      const no = el("button", "b-sec", "Cancelar"); no.addEventListener("click", () => { confirmando = null; render(); });
+      const yes = el("button", "b-pri", "Finalizar"); yes.disabled = finalizando; yes.addEventListener("click", () => confirmarFinalizar(st));
+      bs.append(no, yes); d.appendChild(bs);
+    } else if (st) {
+      const bt = el("button", "b-pri", "Finalizar chamada"); bt.style.marginTop = "12px"; bt.style.width = "100%"; bt.disabled = finalizando;
+      bt.addEventListener("click", () => pedirFinalizar(k));
+      d.appendChild(bt);
+    }
+    return d;
+  }
+
+  async function pedirFinalizar(k){
+    if (finalizando) return; finalizando = true; render();
+    try {
+      if (!configurado() || chaveRuim || navigator.onLine === false) { toast("Sem conexão: não dá para finalizar agora.", "err", 3000); return; }
+      await enviar();
+      if (queue.length) { toast("Ainda há leituras sem enviar. Tente de novo em instantes.", "err", 3500); return; }
+      await atualizarStatus();
+      if (statusMem) confirmando = k; else toast("Não consegui atualizar a lista. Tente de novo.", "err", 3000);
+    } finally { finalizando = false; render(); }
+  }
+  async function confirmarFinalizar(st){
+    if (finalizando) return; finalizando = true; render();
+    try {
+      const j = await chamar({ acao: "finalizar", turma: st.turma, data: hojeISO() });
+      if (j && j.erro === "chave") { chaveRuim = true; pill(); toast("A planilha não aceitou a chave.", "err", 3000); }
+      else if (j && j.erro === "turma") toast("Turma não encontrada na planilha.", "err", 3000);
+      else if (!j || !j.ok) throw new Error("resposta inválida");
+      else toast(j.ja_finalizada ? "Já finalizada às " + horaFin(j) + " por " + (j.professor || "?") : "Chamada finalizada", "ok", 3000);
+    } catch(e) { toast("Sem conexão, tente de novo.", "err", 3000); }
+    confirmando = null; finalizando = false;
+    await atualizarStatus(); render();
+  }
+
   function render(){
     const lista = doDia();
     $("count").textContent = lista.length;
-    const box = $("groups"); box.textContent = "";
-    if (!lista.length) { const p = document.createElement("p"); p.className = "empty"; p.textContent = "Ninguém registrado hoje ainda."; box.appendChild(p); }
-    const turmas = {};
-    lista.forEach(r => (turmas[turmaDe(r)] = turmas[turmaDe(r)] || []).push(r));
-    Object.keys(turmas).sort().forEach(t => {
-      const g = document.createElement("div"); g.className = "group";
-      const h = document.createElement("h3"); h.textContent = t;
-      const c = document.createElement("span"); c.textContent = turmas[t].length + (turmas[t].length === 1 ? " aluno" : " alunos"); h.appendChild(c);
-      const ul = document.createElement("ul");
-      turmas[t].sort((a, b) => a.hora.localeCompare(b.hora)).forEach((r, i) => {
-        const li = document.createElement("li");
-        const n = document.createElement("span"); n.className = "n"; n.textContent = i + 1;
-        const cd = document.createElement("span"); cd.className = "code";
-        const ia0 = infoDe(r);
-        if (ia0 && ia0.n) { const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = ia0.n; cd.appendChild(nm); }
-        cd.appendChild(document.createTextNode(r.matricula));
-        const tm = document.createElement("span"); tm.className = "time"; tm.textContent = r.hora.slice(0, 5);
-        const sy = document.createElement("span"); sy.className = "sync" + (r.sent ? " sent" : ""); sy.title = r.sent ? "Na planilha" : "Esperando envio";
-        const b = document.createElement("button"); b.className = "del"; b.textContent = "Tirar";
-        b.addEventListener("click", () => {
-          if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = "Confirmar"; setTimeout(() => { b.classList.remove("sure"); b.textContent = "Tirar"; }, 3000); return; }
-          regs = regs.filter(x => x !== r); store(K.regs, regs);
-          const ia = queue.findIndex(o => o.op === "add" && o.reg.id === r.id);
-          if (ia >= 0) queue.splice(ia, 1); else queue.push({ op: "del", id: r.id });
-          store(K.queue, queue); render(); enviar(); toast(r.matricula + " saiu da lista.", "warn");
-        });
-        li.append(n, cd, tm, sy, b); ul.appendChild(li);
-      });
-      g.append(h, ul); box.appendChild(g);
-    });
-    $("exportBtn").disabled = $("copyBtn").disabled = !lista.length;
     pill();
+    if (!listaAberta()) return;
+    $("listAviso").hidden = !statusErro; $("listAviso").textContent = AVISOS[statusErro] || "";
+    $("listQuando").textContent = statusMem ? "Atualizado às " + pad(statusMem.quando.getHours()) + ":" + pad(statusMem.quando.getMinutes()) : "";
+    $("refBtn").disabled = !!statusP;
+    const itens = new Map();
+    if (statusMem) statusMem.turmas.forEach(s => itens.set(chaveT(s.turma), { nome: s.turma, st: s, regs: [] }));
+    lista.forEach(r => {
+      const t = turmaDe(r), k = chaveT(t);
+      if (!itens.has(k)) itens.set(k, { nome: t, st: null, regs: [] });
+      itens.get(k).regs.push(r);
+    });
+    const ord = [...itens.entries()].sort((a, b) => (b[1].regs.length > 0) - (a[1].regs.length > 0) || a[1].nome.localeCompare(b[1].nome, "pt-BR"));
+    const box = $("groups"); box.textContent = "";
+    if (!ord.length) box.appendChild(el("p", "empty", statusP ? "Carregando…" : "Ninguém registrado hoje ainda."));
+    ord.forEach(([k, it]) => {
+      const g = el("div", "group"), st = it.st, aberta = k === turmaAberta;
+      const h = el("button", "thead"); h.setAttribute("aria-expanded", aberta);
+      const nome = el("span", "", it.nome);
+      if (st) nome.prepend(el("span", "sig", st.finalizada ? "🟢" : st.sem_chamada ? "⚪" : "🟡"));
+      const ct = el("span", "ct", st ? st.presentes + " de " + st.total : it.regs.length + (it.regs.length === 1 ? " lido" : " lidos"));
+      h.append(nome, ct);
+      h.addEventListener("click", () => { turmaAberta = aberta ? "" : k; confirmando = null; render(); });
+      g.appendChild(h);
+      if (aberta) g.appendChild(detalhe(it, k));
+      box.appendChild(g);
+    });
   }
-
-  function csv(){
-    const l = doDia().slice().sort((a, b) => turmaDe(a).localeCompare(turmaDe(b)) || a.hora.localeCompare(b.hora));
-    return "turma;matricula;data;hora\n" + l.map(r => [turmaDe(r), r.matricula, r.data, r.hora].join(";")).join("\n") + "\n";
-  }
-  $("exportBtn").addEventListener("click", () => {
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + csv()], { type: "text/csv" }));
-    a.download = "chamada_" + hojeISO() + ".csv"; document.body.appendChild(a); a.click(); a.remove();
-  });
-  $("copyBtn").addEventListener("click", () => {
-    const box = $("csvBox");
-    const fb = () => { box.value = csv(); box.hidden = false; box.focus(); box.select(); toast("Selecionei o texto. Copie e cole na planilha.", "warn", 3000); };
-    try { navigator.clipboard.writeText(csv()).then(() => toast("CSV copiado.", "ok"), fb); } catch(e) { fb(); }
-  });
 
   // ---------- início ----------
   $("today").textContent = hojeTxt();

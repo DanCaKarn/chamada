@@ -135,6 +135,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 .manualrow{display:flex;gap:8px}
 .manualrow input{flex:1;min-width:0}
 .manualrow button{background:var(--ink);color:var(--ink-fg)}
+.hintcam #cfgCancel{margin-top:12px;pointer-events:auto;padding:9px 18px}
 </style>
 </head>
 <body>
@@ -143,7 +144,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   <canvas id="still" hidden></canvas>
 
   <div class="target" id="target" hidden><div class="laser"></div></div>
-  <div class="hintcam" id="hintcam" hidden>Aponte para o QR Code da carteirinha</div>
+  <div class="hintcam" id="hintcam" hidden><span id="hintTxt">Aponte para o QR Code da carteirinha</span><br><button class="glassbtn" id="cfgCancel" hidden style="display:inline-flex">Cancelar</button></div>
 
   <div class="topbar">
     <div class="brand"><b>Chamada QR</b><span id="today"></span></div>
@@ -168,7 +169,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 
   <div class="card" id="card" hidden role="dialog" aria-label="Confirmar presença">
     <div class="who">
-      <div><span class="lbl">Aluno</span><span class="val" id="cCodigo"></span></div>
+      <div><span class="lbl">Matrícula</span><span class="val" id="cCodigo"></span></div>
       <div><span class="lbl">Turma</span><span class="val" id="cTurma"></span></div>
     </div>
     <div class="dup" id="cDup" hidden>Esse aluno já está na lista de hoje.</div>
@@ -181,8 +182,9 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   <div class="start" id="start">
     <img class="logo" src="icon-192.png" alt="">
     <h1>Chamada QR</h1>
-    <p>Leia o QR Code das carteirinhas e a presença vai direto pra planilha.</p>
+    <p id="startMsg">Leia o QR Code das carteirinhas e a presença vai direto pra planilha.</p>
     <button class="go" id="goBtn">Iniciar leitura</button>
+    <button class="go" id="cfgBtn" hidden>Configurar este celular</button>
     <div class="err" id="camErr" hidden></div>
     <button class="alt" id="photoBtn" hidden>Usar foto</button>
   </div>
@@ -209,13 +211,13 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   <!-- painel: digitar -->
   <div class="sheetwrap" id="typeSheet" hidden>
     <div class="sheet" role="dialog" aria-label="Digitar código">
-      <div class="sheethead"><h2>Digitar código</h2><button class="close" data-close>Fechar</button></div>
+      <div class="sheethead"><h2>Digitar matrícula</h2><button class="close" data-close>Fechar</button></div>
       <form class="sheetbody" id="manualForm">
         <div class="field">
-          <label for="manual">Turma e código</label>
-          <div class="manualrow"><input type="text" class="mono" id="manual" placeholder="1M01-MCN|A017" autocomplete="off" autocapitalize="characters"><button type="submit">Registrar</button></div>
+          <label for="manual">Matrícula</label>
+          <div class="manualrow"><input type="text" class="mono" id="manual" placeholder="2023001234" autocomplete="off" autocapitalize="characters"><button type="submit">Registrar</button></div>
         </div>
-        <p class="help">Use quando a carteirinha estiver amassada ou sem QR Code. Escreva a turma, uma barra em pé e o código: <code>1M01-MCN|A017</code>.</p>
+        <p class="help">Use quando a carteirinha estiver amassada ou sem QR Code. Escreva só a matrícula do aluno: <code>2023001234</code>.</p>
       </form>
     </div>
   </div>
@@ -229,6 +231,11 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
           <label for="sheetUrl">Endereço da planilha (Apps Script)</label>
           <input type="url" class="mono" id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
         </div>
+        <div class="field">
+          <label for="sheetKey">Chave do professor</label>
+          <input type="text" class="mono" id="sheetKey" placeholder="chave que o coordenador deu a você" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        </div>
+        <button class="b-sec" id="cfgQrBtn">Ler QR de configuração</button>
         <div class="row"><button id="testBtn">Testar conexão</button><button id="syncBtn">Enviar agora</button></div>
         <div class="status" id="setStatus" hidden></div>
         <label class="switch" for="askConfirm">
@@ -247,31 +254,51 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 (function(){
   "use strict";
   const $ = id => document.getElementById(id);
-  const K = { regs: "cqr-regs", queue: "cqr-queue", url: "cqr-url", ask: "cqr-ask" };
+  const K = { regs: "cqr-regs", queue: "cqr-queue", url: "cqr-url", key: "cqr-key", ask: "cqr-ask" };
   const load = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e) { return d; } };
   const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} };
 
   let regs = load(K.regs, []);       // registros do dia (e anteriores, limpos depois de 7 dias)
   let queue = load(K.queue, []);     // operações esperando envio: {op:"add", reg} | {op:"del", id}
   let sheetUrl = load(K.url, "");
+  let sheetKey = load(K.key, "");    // chave do professor: fica só neste celular
+  let chaveRuim = false;             // a planilha recusou a chave: não adianta insistir
+  let modoConfig = false;            // câmera lendo o QR de configuração (e não carteirinhas)
   let askConfirm = load(K.ask, true);
 
   const pad = n => String(n).padStart(2, "0");
   const hojeISO = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
   const hojeTxt = () => { const t = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }); return t.charAt(0).toUpperCase() + t.slice(1); };
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  // formato antigo (turma/código) -> formato novo: codigo vira matricula, a turma agora vem da planilha
+  queue = queue.map(o => {
+    const g = o && o.op === "add" && o.reg;
+    if (g && g.matricula === undefined && g.codigo !== undefined) return { op: "add", reg: { id: g.id, matricula: String(g.codigo), data: g.data, hora: g.hora, forma: "QR" } };
+    return o;
+  }); store(K.queue, queue);
+  regs.forEach(r => { if (r.matricula === undefined && r.codigo !== undefined) { r.matricula = String(r.codigo); delete r.codigo; } if (!r.forma) r.forma = "QR"; }); store(K.regs, regs);
   // limpa registros com mais de 7 dias que já foram enviados
   (function(){ const lim = Date.now() - 7 * 864e5; regs = regs.filter(r => !r.sent || new Date(r.data + "T12:00").getTime() > lim); store(K.regs, regs); })();
 
-  function parse(txt){
-    txt = String(txt || "").trim(); if (!txt) return null;
+  const PREFIXO = "CHAMADAQR1";
+  // Matrícula = o texto depois do "|" (se houver) ou o texto inteiro. O QR de configuração nunca é matrícula.
+  function parse(txt, forma){
+    txt = String(txt || "").trim(); if (!txt || txt.indexOf(PREFIXO) === 0) return null;
     const i = txt.indexOf("|");
-    if (i < 0) return { turma: "Sem turma", codigo: txt.toUpperCase() };
-    const turma = txt.slice(0, i).trim(), codigo = txt.slice(i + 1).trim().toUpperCase();
-    return codigo ? { turma: turma || "Sem turma", codigo } : null;
+    if (i < 0) return { turma: "Sem turma", matricula: txt.toUpperCase(), forma };
+    const turma = txt.slice(0, i).trim(), matricula = txt.slice(i + 1).trim().toUpperCase();
+    return matricula ? { turma: turma || "Sem turma", matricula, forma } : null;
+  }
+  const execOk = /^https:\/\/script\.google(usercontent)?\.com\/\S+\/exec$/;
+  // QR de configuração: CHAMADAQR1|<exec>|<chave>
+  function lerQRConfig(txt){
+    const p = String(txt || "").trim().split("|");
+    if (p.length !== 3 || p[0] !== PREFIXO) return null;
+    const exec = p[1].trim(), chave = p[2].trim();
+    return execOk.test(exec) && chave && !/\s/.test(chave) ? { exec, chave } : null;
   }
   const doDia = () => regs.filter(r => r.data === hojeISO());
-  const jaTem = p => doDia().some(r => r.turma === p.turma && r.codigo === p.codigo);
+  const jaTem = p => doDia().some(r => r.matricula === p.matricula);
 
   let toastT;
   function toast(msg, kind, ms){ const t = $("toast"); t.textContent = msg; t.className = "toast " + kind; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms || 2200); }
@@ -353,16 +380,31 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     if (typeof jsQR === "function") { const r = jsQR(cctx.getImageData(0, 0, crop.width, crop.height).data, crop.width, crop.height, { inversionAttempts: "dontInvert" }); return r ? r.data : null; }
     return null;
   }
+  let looping = false;
   async function loop(){
+    if (looping) return; looping = true;
+    try { await loop1(); } finally { looping = false; }
+  }
+  async function loop1(){
     while (scanning) {
       if (video.readyState >= 2 && grabTarget()) {
         const t0 = performance.now();
         const txt = await decodeCrop();
         window.__lastDecodeMs = performance.now() - t0;
         if (!scanning) break;
-        const p = txt && parse(txt);
+        if (txt && modoConfig) {
+          const c = lerQRConfig(txt);
+          if (c) { scanning = false; aplicarConfig(c); break; }
+          if (txt !== lastText || Date.now() - lastTime > 2500) { lastText = txt; lastTime = Date.now(); apito(false); toast("Esse não é o QR de configuração.", "warn", 2500); }
+          await sleep(60); continue;
+        }
+        if (txt && txt.trim().indexOf(PREFIXO) === 0) {
+          if (txt !== lastText || Date.now() - lastTime > 2500) { lastText = txt; lastTime = Date.now(); apito(false); toast("Esse é o QR de configuração. Use Ajustes > Ler QR de configuração.", "warn", 3500); }
+          await sleep(60); continue;
+        }
+        const p = txt && parse(txt, "QR");
         if (p) {
-          const key = p.turma + "|" + p.codigo;
+          const key = p.matricula;
           // mesma carteirinha ainda na frente da câmera: ignora em silêncio
           if (key === lastText && (Date.now() - lastTime < 2500 || jaTem(p))) { lastTime = Date.now(); await sleep(60); continue; }
           lastText = key; lastTime = Date.now();
@@ -387,7 +429,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     apito(!dup);
     if (!askConfirm && !dup) { registrar(p); setTimeout(retomar, 550); return; }
     pending = p;
-    $("cCodigo").textContent = p.codigo; $("cTurma").textContent = p.turma;
+    $("cCodigo").textContent = p.matricula; $("cTurma").textContent = p.turma;
     $("cDup").hidden = !dup; $("cYes").hidden = dup; $("cNo").textContent = dup ? "Ok" : "Cancelar";
     $("bottombar").hidden = true; $("card").hidden = false;
   }
@@ -399,13 +441,13 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   }
   $("cYes").addEventListener("click", () => { if (pending) registrar(pending); retomar(); });
   $("cNo").addEventListener("click", retomar);
-  $("goBtn").addEventListener("click", iniciar);
+  $("goBtn").addEventListener("click", () => { setModo(false); iniciar(); });
 
   function registrar(p){
-    const r = { id: uid(), turma: p.turma, codigo: p.codigo, data: hojeISO(), hora: new Date().toTimeString().slice(0, 8), sent: false };
+    const r = { id: uid(), turma: p.turma, matricula: p.matricula, data: hojeISO(), hora: new Date().toTimeString().slice(0, 8), forma: p.forma || "QR", sent: false };
     regs.push(r); store(K.regs, regs);
-    queue.push({ op: "add", reg: { id: r.id, turma: r.turma, codigo: r.codigo, data: r.data, hora: r.hora } }); store(K.queue, queue);
-    toast("✓ " + p.codigo + " · " + p.turma, "ok", 1400);
+    queue.push({ op: "add", reg: { id: r.id, matricula: r.matricula, data: r.data, hora: r.hora, forma: r.forma } }); store(K.queue, queue);
+    toast("✓ " + p.matricula + (p.turma !== "Sem turma" ? " · " + p.turma : ""), "ok", 1400);
     render(); enviar();
   }
 
@@ -420,7 +462,12 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       cctx.drawImage(img, 0, 0, crop.width, crop.height); URL.revokeObjectURL(url);
       let txt = await decodeCrop();
       if (!txt && typeof jsQR === "function") { const r = jsQR(cctx.getImageData(0, 0, crop.width, crop.height).data, crop.width, crop.height, { inversionAttempts: "attemptBoth" }); txt = r && r.data; }
-      const p = txt && parse(txt);
+      if (modoConfig) {
+        const c = txt && lerQRConfig(txt);
+        if (c) aplicarConfig(c); else { apito(false); toast("Não achei o QR de configuração. Tente mais de perto.", "err", 3000); }
+        return;
+      }
+      const p = txt && parse(txt, "QR");
       if (!p) { apito(false); toast("Não achei o QR Code. Tente mais de perto.", "err", 3000); return; }
       still.width = crop.width; still.height = crop.height; still.getContext("2d").drawImage(crop, 0, 0);
       still.hidden = false; $("start").hidden = true; achou(p);
@@ -430,20 +477,32 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 
   // ---------- planilha ----------
   let sending = false, retryT = null;
+  const configurado = () => !!(sheetUrl && sheetKey);
   function pill(){
     const p = $("pill"), n = queue.length;
-    p.className = "pill " + (!sheetUrl ? "off" : n ? "wait" : "ok");
-    $("pillText").textContent = !sheetUrl ? "Sem planilha" : n ? n + " na fila" : "Planilha em dia";
+    p.className = "pill " + (!configurado() || chaveRuim ? "off" : n ? "wait" : "ok");
+    $("pillText").textContent = !configurado() ? "Sem planilha" : chaveRuim ? "Chave inválida" : n ? n + " na fila" : "Planilha em dia";
+  }
+  // tela inicial: sem endereço e chave salvos, só se oferece "Configurar este celular"
+  function atualizarInicio(){
+    const ok = configurado();
+    $("goBtn").hidden = !ok; $("cfgBtn").hidden = ok;
+    $("startMsg").textContent = ok ? "Leia o QR Code das carteirinhas e a presença vai direto pra planilha." : "Este celular ainda não está configurado. Peça ao coordenador o QR de configuração e toque no botão abaixo.";
+  }
+  // toda conversa com a planilha: POST em JSON com acao e chave (contrato no PLANO.md)
+  async function chamar(corpo){
+    const resp = await fetch(sheetUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({}, corpo, { chave: sheetKey })), redirect: "follow" });
+    return resp.json();
   }
   async function enviar(){
     pill();
-    if (!sheetUrl || sending || !queue.length) return;
+    if (!configurado() || chaveRuim || sending || !queue.length) return;
     if (navigator.onLine === false) { agendar(); return; }
     sending = true;
     const lote = queue.slice(0, 50);
     try {
-      const resp = await fetch(sheetUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ops: lote }), redirect: "follow" });
-      const j = await resp.json();
+      const j = await chamar({ acao: "enviar", ops: lote });
+      if (j && j.erro === "chave") { chaveRuim = true; sending = false; pill(); return; }
       if (!j || !j.ok) throw new Error((j && j.erro) || "resposta inválida");
       const feitos = new Set(lote.map(o => o.op === "add" ? "a" + o.reg.id : "d" + o.id));
       queue = queue.filter(o => !feitos.has(o.op === "add" ? "a" + o.reg.id : "d" + o.id)); store(K.queue, queue);
@@ -460,17 +519,62 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   document.addEventListener("visibilitychange", () => { if (!document.hidden) enviar(); });
 
   function status(msg, kind){ const s = $("setStatus"); s.textContent = msg; s.className = "status " + kind; s.hidden = false; }
-  $("sheetUrl").value = sheetUrl;
-  $("sheetUrl").addEventListener("change", () => { sheetUrl = $("sheetUrl").value.trim(); store(K.url, sheetUrl); pill(); enviar(); });
-  $("testBtn").addEventListener("click", async () => {
-    sheetUrl = $("sheetUrl").value.trim(); store(K.url, sheetUrl); pill();
-    if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(sheetUrl)) { status("Cole o endereço que termina em /exec, copiado da implantação do Apps Script.", "err"); return; }
+  function guardarCampos(){
+    sheetUrl = $("sheetUrl").value.trim(); sheetKey = $("sheetKey").value.trim();
+    store(K.url, sheetUrl); store(K.key, sheetKey); chaveRuim = false; pill(); atualizarInicio();
+  }
+  $("sheetUrl").value = sheetUrl; $("sheetKey").value = sheetKey;
+  $("sheetUrl").addEventListener("change", () => { guardarCampos(); enviar(); });
+  $("sheetKey").addEventListener("change", () => { guardarCampos(); enviar(); });
+
+  // chama a ação "teste". Devolve { ok, planilha, professor } ou { ok: false } (já mostra o erro no Ajustes).
+  async function testar(){
     status("Testando…", "warn");
-    try { const r = await fetch(sheetUrl + (sheetUrl.includes("?") ? "&" : "?") + "teste=1", { redirect: "follow" }); const j = await r.json();
-          if (j && j.ok) { status("Conectado à planilha" + (j.planilha ? " \"" + j.planilha + "\"" : "") + ".", "ok"); enviar(); } else throw 0; }
-    catch(e) { status("Não consegui falar com a planilha. Confira o endereço e se a implantação está liberada para \"Qualquer pessoa\".", "err"); }
+    if (!execOk.test(sheetUrl)) { status("Cole o endereço que termina em /exec, copiado da implantação do Apps Script.", "err"); return { ok: false }; }
+    if (!sheetKey) { status("Falta a chave do professor.", "err"); return { ok: false }; }
+    try {
+      const j = await chamar({ acao: "teste" });
+      if (j && j.ok) { chaveRuim = false; pill(); return j; }
+      if (j && j.erro === "chave") { chaveRuim = true; pill(); status("A planilha não aceitou a chave. Confira com o coordenador se ela está certa e ativa.", "err"); return { ok: false }; }
+      throw 0;
+    } catch(e) { status("Não consegui falar com a planilha. Confira o endereço e se a implantação está liberada para \"Qualquer pessoa\".", "err"); return { ok: false }; }
+  }
+  $("testBtn").addEventListener("click", async () => {
+    guardarCampos();
+    const j = await testar();
+    if (j.ok) { status("Conectado à planilha" + (j.planilha ? " \"" + j.planilha + "\"" : "") + ". Professor: " + (j.professor || "?") + ".", "ok"); enviar(); }
   });
-  $("syncBtn").addEventListener("click", () => { if (!sheetUrl) { status("Cole o endereço da planilha primeiro.", "err"); return; } if (!queue.length) { status("Nada na fila. Está tudo na planilha.", "ok"); return; } status("Enviando " + queue.length + "…", "warn"); enviar().then(() => status(queue.length ? "Ainda sem conexão. Tento de novo sozinho." : "Tudo enviado.", queue.length ? "warn" : "ok")); });
+  $("syncBtn").addEventListener("click", () => {
+    if (!configurado()) { status("Falta o endereço da planilha e a chave do professor.", "err"); return; }
+    if (!queue.length) { status("Nada na fila. Está tudo na planilha.", "ok"); return; }
+    status("Enviando " + queue.length + "…", "warn");
+    enviar().then(() => queue.length ? (chaveRuim ? status("A planilha não aceitou a chave.", "err") : status("Ainda sem conexão. Tento de novo sozinho.", "warn")) : status("Tudo enviado.", "ok"));
+  });
+
+  // ---------- configuração por QR ----------
+  function setModo(on){
+    modoConfig = on;
+    $("hintTxt").textContent = on ? "Aponte para o QR de configuração" : "Aponte para o QR Code da carteirinha";
+    $("cfgCancel").hidden = !on;
+  }
+  function lerConfig(){
+    $("setSheet").hidden = true;
+    setModo(true); lastText = "";
+    if (stream) { $("hintcam").hidden = false; scanning = true; loop(); } else iniciar();
+  }
+  async function aplicarConfig(c){
+    sheetUrl = c.exec; sheetKey = c.chave; store(K.url, sheetUrl); store(K.key, sheetKey); chaveRuim = false;
+    $("sheetUrl").value = sheetUrl; $("sheetKey").value = sheetKey;
+    setModo(false); pill(); atualizarInicio();
+    abrir("setSheet");
+    const j = await testar();
+    if (j.ok) { const msg = "Configurado para: " + (j.professor || "?"); apito(true); status(msg, "ok"); toast(msg, "ok", 4000); enviar(); }
+    else apito(false);
+  }
+  $("cfgQrBtn").addEventListener("click", lerConfig);
+  $("cfgBtn").addEventListener("click", () => { audioOn(); lerConfig(); });
+  $("cfgCancel").addEventListener("click", () => setModo(false));
+  atualizarInicio();
   $("askConfirm").checked = askConfirm;
   $("askConfirm").addEventListener("change", () => { askConfirm = $("askConfirm").checked; store(K.ask, askConfirm); });
 
@@ -482,13 +586,13 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   });
   $("listBtn").addEventListener("click", () => { render(); abrir("listSheet"); });
   $("typeBtn").addEventListener("click", () => { abrir("typeSheet"); setTimeout(() => $("manual").focus(), 50); });
-  $("setBtn").addEventListener("click", () => abrir("setSheet"));
+  $("setBtn").addEventListener("click", () => { setModo(false); abrir("setSheet"); });
   $("manualForm").addEventListener("submit", e => {
     e.preventDefault(); audioOn();
-    const p = parse($("manual").value); $("manual").value = "";
+    const p = parse($("manual").value, "Digitado"); $("manual").value = "";
     if (!p) return;
     $("typeSheet").hidden = true;
-    if (jaTem(p)) { apito(false); toast(p.codigo + " já está na lista de hoje.", "warn", 2500); }
+    if (jaTem(p)) { apito(false); toast(p.matricula + " já está na lista de hoje.", "warn", 2500); }
     else { apito(true); registrar(p); }
     if (stream && $("card").hidden) { scanning = true; loop(); }
   });
@@ -508,7 +612,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       turmas[t].sort((a, b) => a.hora.localeCompare(b.hora)).forEach((r, i) => {
         const li = document.createElement("li");
         const n = document.createElement("span"); n.className = "n"; n.textContent = i + 1;
-        const cd = document.createElement("span"); cd.className = "code"; cd.textContent = r.codigo;
+        const cd = document.createElement("span"); cd.className = "code"; cd.textContent = r.matricula;
         const tm = document.createElement("span"); tm.className = "time"; tm.textContent = r.hora.slice(0, 5);
         const sy = document.createElement("span"); sy.className = "sync" + (r.sent ? " sent" : ""); sy.title = r.sent ? "Na planilha" : "Esperando envio";
         const b = document.createElement("button"); b.className = "del"; b.textContent = "Tirar";
@@ -517,7 +621,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
           regs = regs.filter(x => x !== r); store(K.regs, regs);
           const ia = queue.findIndex(o => o.op === "add" && o.reg.id === r.id);
           if (ia >= 0) queue.splice(ia, 1); else queue.push({ op: "del", id: r.id });
-          store(K.queue, queue); render(); enviar(); toast(r.codigo + " saiu da lista.", "warn");
+          store(K.queue, queue); render(); enviar(); toast(r.matricula + " saiu da lista.", "warn");
         });
         li.append(n, cd, tm, sy, b); ul.appendChild(li);
       });
@@ -529,7 +633,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 
   function csv(){
     const l = doDia().slice().sort((a, b) => a.turma.localeCompare(b.turma) || a.hora.localeCompare(b.hora));
-    return "turma;codigo;data;hora\n" + l.map(r => [r.turma, r.codigo, r.data, r.hora].join(";")).join("\n") + "\n";
+    return "turma;matricula;data;hora\n" + l.map(r => [r.turma, r.matricula, r.data, r.hora].join(";")).join("\n") + "\n";
   }
   $("exportBtn").addEventListener("click", () => {
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + csv()], { type: "text/csv" }));

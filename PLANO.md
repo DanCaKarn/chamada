@@ -37,6 +37,10 @@ Toda conversa é um **POST** para o `/exec` com um JSON que sempre leva a `chave
 - Só `enviar` e `finalizar` escrevem e usam a trava do script; `teste`, `alunos` e `status` só leem e não esperam.
 
 - `forma`: `"QR"` ou `"Digitado"`.
+- **QR de configuração** (gerado em `configurar.html`, lido no app): `CHAMADAQR1|<exec>|<chave>`. O app guarda endereço e chave só no
+  celular. Sem os dois, a tela inicial mostra “Configurar este celular”. Chave recusada (`erro: "chave"`): o app para de reenviar.
+- **Transição (Etapas 3 a 4):** o QR das carteirinhas passa a ser só a matrícula; o app envia como matrícula o texto depois do `|`
+  (se houver) ou o texto inteiro. Itens antigos da fila (turma/código) viram matrícula ao carregar.
 - A **turma** de cada presença é descoberta pela planilha (aba Alunos) no momento em que ela recebe
   a leitura, e fica gravada na linha. Assim, um remanejamento futuro não altera presenças antigas.
 - **Duplicata:** mesma **data + matrícula** → ignora a nova leitura; vale a primeira.

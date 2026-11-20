@@ -16,6 +16,7 @@ A planilha atual é a de testes; a oficial será criada do zero na Etapa 10.
 
 - Roda no iPhone (Safari) pelo GitHub Pages, instalado na tela de início como aplicativo (`manifest.webmanifest` + `sw.js`).
 - Tudo em um único `index.html`, sem build.
+- `configurar.html`: página do coordenador (no PC) que gera o QR de configuração `CHAMADAQR1|<exec>|<chave>`; não salva nem envia nada (CSP bloqueia conexões).
 - Leitor: polyfill `barcode-detector` (ZXing), com `jsQR` de reserva.
 
 ## Regras importantes

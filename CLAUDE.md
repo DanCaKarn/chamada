@@ -5,7 +5,7 @@ App de lista de presença. Lê o QR Code das carteirinhas, que contém **só a m
 ## Plano e contrato
 
 - O plano de construção por etapas está em `PLANO.md`. Faça **uma etapa por vez**, na ordem.
-- O **contrato app↔planilha** (ações `teste`, `enviar`, `alunos`, `status`, `finalizar`, sempre com a `chave` do professor num POST em JSON) está no `PLANO.md`. Siga-o; se precisar mudá-lo, atualize o `PLANO.md`.
+- O **contrato app↔planilha** (ações `teste`, `enviar`, `alunos`, `status`, `finalizar`, `desfinalizar`, sempre com a `chave` do professor num POST em JSON) está no `PLANO.md`. Siga-o; se precisar mudá-lo, atualize o `PLANO.md`.
 
 ## Planilha
 

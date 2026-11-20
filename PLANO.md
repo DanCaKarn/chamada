@@ -26,6 +26,7 @@ Toda conversa é um **POST** para o `/exec` com um JSON que sempre leva a `chave
 | `alunos` | — | `ok`, `alunos: [{m: matrícula, n: nome, t: turma, s: situação}]` — **todos**, inclusive transferidos (`s` = `"Transferido"`, senão `""`), para o app poder avisar na leitura |
 | `status` | `data` (`AAAA-MM-DD`) | `ok`, `data`, `turmas: [{turma, total, presentes, sem_chamada, ausentes: [{m, n}], finalizada}]` |
 | `finalizar` | `turma`, `data` | `ok`, `ja_finalizada`, `professor`, `hora` |
+| `desfinalizar` | `turma`, `data` | `ok`, `desfeita` |
 
 - `status`: `total` = alunos **ativos** da turma (transferidos não contam em nada). `finalizada` = `null` ou `{hora, professor}`.
   `sem_chamada` = `true` só se ninguém da turma tem presença na data **e** a turma não está finalizada
@@ -33,8 +34,15 @@ Toda conversa é um **POST** para o `/exec` com um JSON que sempre leva a `chave
   e todos os ativos entram em `ausentes`.
 - `finalizar` **não duplica**: se a turma já estava finalizada na data, não grava outra linha e responde
   `ja_finalizada: true` com o professor e a hora da primeira vez.
-- Erros: `chave` (inválida), `acao` (desconhecida), `data` (formato errado), `turma` (não existe na aba Alunos).
-- Só `enviar` e `finalizar` escrevem e usam a trava do script; `teste`, `alunos` e `status` só leem e não esperam.
+- `desfinalizar`: apaga a linha da turma+data na aba Chamadas. Só aceita se a chave for do **mesmo professor** que finalizou e se passaram
+  **no máximo 2 minutos** da finalização; senão `outro_professor` / `prazo`. Sem finalização: `nao_finalizada`. Ao desfazer, desmarca o Atraso
+  das leituras posteriores à finalização desfeita. O app oferece "Desfazer" por 10 s depois de finalizar.
+- **Atraso** (coluna da aba Presenças): `Sim` se a turma já estava finalizada na data **e a hora da leitura** (vinda do app) é **posterior** à hora
+  da finalização. Leitura feita antes da finalização, mesmo enviada depois (fila sem internet), não é atraso.
+- Turma `sem_chamada`: a planilha manda `ausentes` vazio; o app lista os alunos ativos da lista em memória como "Ainda não registrados" e,
+  ao finalizar, avisa "Ninguém foi registrado nesta turma. Faltam todos os N: …".
+- Erros: `chave` (inválida), `acao` (desconhecida), `data` (formato errado), `turma` (não existe na aba Alunos), `nao_finalizada`, `outro_professor`, `prazo`.
+- Só `enviar`, `finalizar` e `desfinalizar` escrevem e usam a trava do script; `teste`, `alunos` e `status` só leem e não esperam.
 
 - `forma`: `"QR"` ou `"Digitado"`.
 - **QR de configuração** (gerado em `configurar.html`, lido no app): `CHAMADAQR1|<exec>|<chave>`. O app guarda endereço e chave só no
@@ -51,7 +59,7 @@ Toda conversa é um **POST** para o `/exec` com um JSON que sempre leva a `chave
 |---|---|---|
 | **Alunos** | Nome · Matrícula · Turma · Situação (em branco = ativo, ou "Transferido") | você (importação) |
 | **Professores** | Nome · Chave · Ativo | menu da planilha gera a chave |
-| **Presenças** | ID (oculta) · Data · Hora · Matrícula · Nome · Turma · Professor · Forma · Recebido em | o script |
+| **Presenças** | ID (oculta) · Data · Hora · Matrícula · Nome · Turma · Professor · Forma · Recebido em · Atraso | o script |
 | **Chamadas** | Data · Turma · Professor · Finalizada às | o script |
 
 ---
@@ -150,7 +158,7 @@ Na planilha, a coluna Forma deve vir "Digitado".
 
 ---
 
-### [ ] Etapa 6: App: tela por turma, status e Finalizar chamada
+### [x] Etapa 6: App: tela por turma, status e Finalizar chamada
 **Pedido para o Claude Code:**
 > Etapa 6 do PLANO.md: o painel Lista passa a mostrar contadores por turma ("1M01-MCN · 32 de 35"), com status
 > 🟢 finalizada / 🟡 em andamento / ⚪ sem chamada, usando a ação `status` (dados de todos os celulares).

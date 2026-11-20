@@ -17,11 +17,13 @@
  * Matrícula não cadastrada é gravada mesmo assim: Turma = "NÃO CADASTRADA", linha em amarelo.
  * Para ser rápido com muitas linhas, só confere as últimas LINHAS_RECENTES de Presenças.
  *
- * Ações: teste, enviar, alunos, status, finalizar.
+ * Ações: teste, enviar, alunos, status, finalizar, desfinalizar.
  *   alunos     todos os alunos (inclusive transferidos, s = "Transferido").
  *   status     por turma, numa data: total de ativos, presentes, ausentes e se está finalizada.
  *   finalizar  grava a turma em Chamadas; se já estava finalizada naquela data, não duplica.
- * Só enviar e finalizar escrevem, e só elas usam a trava; as demais só leem e não esperam ninguém.
+ *   desfinalizar  desfaz a finalização (só o mesmo professor, até 2 minutos depois); desmarca o Atraso.
+ * Atraso: presença lida DEPOIS da hora em que a turma foi finalizada (pela hora da leitura, não do envio).
+ * Só enviar, finalizar e desfinalizar escrevem, e só elas usam a trava; as demais só leem e não esperam ninguém.
  */
 
 const ABA_ALUNOS = 'Alunos';
@@ -32,7 +34,7 @@ const ABA_CHAMADAS = 'Chamadas';
 
 const CAB_ALUNOS = ['Nome', 'Matrícula', 'Turma', 'Situação'];
 const CAB_PROFESSORES = ['Nome', 'Chave', 'Ativo'];
-const CAB_PRESENCAS = ['ID', 'Data', 'Hora', 'Matrícula', 'Nome', 'Turma', 'Professor', 'Forma', 'Recebido em'];
+const CAB_PRESENCAS = ['ID', 'Data', 'Hora', 'Matrícula', 'Nome', 'Turma', 'Professor', 'Forma', 'Recebido em', 'Atraso'];
 const CAB_CHAMADAS = ['Data', 'Turma', 'Professor', 'Finalizada às'];
 
 const LINHAS_RECENTES = 2000;
@@ -79,7 +81,7 @@ function gerarChave_() {
 
 // ---------------------------------------------------------------- requisições
 
-const ACOES_ESCRITA = ['enviar', 'finalizar'];
+const ACOES_ESCRITA = ['enviar', 'finalizar', 'desfinalizar'];
 
 function doPost(e) {
   try {
@@ -126,6 +128,8 @@ function tratar_(dados, escrita) {
       return status_(dados.data);
     case 'finalizar':
       return finalizar_(dados.turma, dados.data, professor);
+    case 'desfinalizar':
+      return desfinalizar_(dados.turma, dados.data, professor);
     default:
       return responder_({ ok: false, erro: 'acao' });
   }
@@ -151,6 +155,7 @@ function enviar_(ops, professor) {
   const adicoes = ops.filter(op => op && op.op === 'add');
   const alunos = adicoes.length ? mapaAlunos_() : {};
   const fuso = Session.getScriptTimeZone();
+  const finPorData = {}; // data -> { TURMA: {hora, professor} }
 
   const novas = [];
   const amarelas = []; // posições em "novas" que ficam amarelas
@@ -168,11 +173,19 @@ function enviar_(ops, professor) {
     const aluno = alunos[matricula.toUpperCase()];
     if (!aluno) amarelas.push(novas.length);
     const forma = r.forma === 'QR' ? 'QR' : 'Digitado';
+    // Atraso: a HORA DA LEITURA (do app) é depois da hora em que a turma foi finalizada
+    let atraso = '';
+    if (aluno && aluno.turma) {
+      if (!finPorData[data]) finPorData[data] = finalizadasDaData_(data);
+      const fin = finPorData[data][aluno.turma.toUpperCase()];
+      if (fin && depois_(r.hora, fin.hora)) atraso = 'Sim';
+    }
     // "'" na frente guarda data, hora e matrícula como texto (sem perder zeros à esquerda)
     novas.push([
       id, "'" + data, "'" + String(r.hora || ''), "'" + matricula,
       aluno ? aluno.nome : '', aluno ? aluno.turma : NAO_CADASTRADA,
-      professor, forma, Utilities.formatDate(new Date(), fuso, 'dd/MM/yyyy HH:mm:ss')
+      professor, forma, Utilities.formatDate(new Date(), fuso, 'dd/MM/yyyy HH:mm:ss'),
+      atraso
     ]);
   });
 
@@ -296,6 +309,62 @@ function finalizar_(turma, iso, professor) {
   return responder_({ ok: true, ja_finalizada: false, professor: professor, hora: hora });
 }
 
+// ---------------------------------------------------------------- ação "desfinalizar"
+
+const PRAZO_DESFAZER_SEG = 120;
+
+function desfinalizar_(turma, iso, professor) {
+  if (!dataValida_(iso)) return responder_({ ok: false, erro: 'data' });
+  const pedida = String(turma || '').trim().toUpperCase();
+  const alvo = lerAlunos_().filter(a => a.t.toUpperCase() === pedida)[0];
+  if (!pedida || !alvo) return responder_({ ok: false, erro: 'turma' });
+
+  const data = formatarData_(iso);
+  const planilha = SpreadsheetApp.getActiveSpreadsheet();
+  const aba = planilha.getSheetByName(ABA_CHAMADAS);
+  const rec = lerRecentes_(aba);
+  const linhas = []; // posições (na planilha) das linhas dessa turma e data
+  let primeira = null;
+  rec.linhas.forEach((l, i) => {
+    if (dataTexto_(l[0]) === data && String(l[1]).trim().toUpperCase() === pedida) {
+      linhas.push(rec.inicio + i);
+      if (!primeira) primeira = { professor: String(l[2]).trim(), hora: horaTexto_(l[3]) };
+    }
+  });
+  if (!primeira) return responder_({ ok: false, erro: 'nao_finalizada' });
+  if (primeira.professor !== professor) return responder_({ ok: false, erro: 'outro_professor' });
+
+  const p = iso.split('-'), h = primeira.hora.split(':');
+  const quando = new Date(+p[0], +p[1] - 1, +p[2], +h[0] || 0, +h[1] || 0, +h[2] || 0);
+  if ((Date.now() - quando.getTime()) / 1000 > PRAZO_DESFAZER_SEG) return responder_({ ok: false, erro: 'prazo' });
+
+  for (let i = linhas.length - 1; i >= 0; i--) aba.deleteRow(linhas[i]);
+
+  // desmarca o Atraso das leituras posteriores à finalização desfeita
+  const pres = planilha.getSheetByName(ABA_PRESENCAS);
+  const ultima = pres.getLastRow();
+  if (ultima >= 2) {
+    const inicio = Math.max(2, ultima - LINHAS_RECENTES + 1);
+    const col = CAB_PRESENCAS.length;
+    const vals = pres.getRange(inicio, 1, ultima - inicio + 1, col).getValues();
+    vals.forEach((l, i) => {
+      if (dataTexto_(l[1]) === data && String(l[5]).trim().toUpperCase() === pedida &&
+          String(l[col - 1]).trim() === 'Sim' && depois_(horaTexto_(l[2]), primeira.hora)) {
+        pres.getRange(inicio + i, col).clearContent();
+      }
+    });
+  }
+  return responder_({ ok: true, desfeita: true });
+}
+
+// A hora "a" (HH:mm:ss) é posterior à "b"? (igual não é.) Hora vazia ou inválida: não.
+function depois_(a, b) {
+  const re = /^\d{1,2}:\d{2}(:\d{2})?$/;
+  const norm = t => { t = String(t || '').trim().replace(/^'/, ''); if (!re.test(t)) return null; const x = t.split(':'); return x[0].padStart(2, '0') + ':' + x[1] + ':' + (x[2] || '00'); };
+  const na = norm(a), nb = norm(b);
+  return !!na && !!nb && na > nb;
+}
+
 // matrícula (maiúscula) -> { nome, turma }
 function mapaAlunos_() {
   const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABA_ALUNOS);
@@ -352,7 +421,7 @@ function garantirAbas_() {
 
   // Presenças: se ainda está no formato antigo (tem a coluna "Código"), guarda como "Presenças (antigo)".
   let pres = planilha.getSheetByName(ABA_PRESENCAS);
-  if (pres && String(pres.getRange(1, 1, 1, Math.min(9, pres.getMaxColumns())).getValues()[0]).indexOf('Código') >= 0) {
+  if (pres && String(pres.getRange(1, 1, 1, Math.min(CAB_PRESENCAS.length, pres.getMaxColumns())).getValues()[0]).indexOf('Código') >= 0) {
     let nome = ABA_PRESENCAS_ANTIGA;
     if (planilha.getSheetByName(nome)) {
       nome += ' ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HHmmss');
@@ -365,6 +434,14 @@ function garantirAbas_() {
     cabecalho_(aba, CAB_PRESENCAS);
     aba.setColumnWidth(1, 60);
     aba.hideColumns(1); // o ID é só para controle do app
+  } else {
+    // aba já no formato novo, mas sem a coluna Atraso: acrescenta o título (sem mexer nos dados)
+    const aba = planilha.getSheetByName(ABA_PRESENCAS);
+    const col = CAB_PRESENCAS.length;
+    if (aba.getMaxColumns() < col) aba.insertColumnsAfter(aba.getMaxColumns(), col - aba.getMaxColumns());
+    if (String(aba.getRange(1, col).getValue()).trim() !== 'Atraso') {
+      aba.getRange(1, col).setValue('Atraso').setFontWeight('bold');
+    }
   }
 }
 
@@ -411,7 +488,8 @@ function abasProntas_() {
   const nomes = [ABA_ALUNOS, ABA_PROFESSORES, ABA_PRESENCAS, ABA_CHAMADAS];
   if (nomes.some(n => !planilha.getSheetByName(n))) return false;
   const pres = planilha.getSheetByName(ABA_PRESENCAS);
-  return String(pres.getRange(1, 1, 1, Math.min(9, pres.getMaxColumns())).getValues()[0]).indexOf('Código') < 0;
+  const cab = pres.getRange(1, 1, 1, Math.min(CAB_PRESENCAS.length, pres.getMaxColumns())).getValues()[0];
+  return String(cab).indexOf('Código') < 0 && String(cab[CAB_PRESENCAS.length - 1] || '').trim() === 'Atraso';
 }
 
 function formatarData_(iso) {

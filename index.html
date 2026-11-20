@@ -94,6 +94,11 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-of
 
 /* aviso */
 .toast{position:absolute;left:50%;top:calc(var(--st) + 70px);transform:translateX(-50%);max-width:calc(100% - 32px);width:max-content;padding:10px 16px;border-radius:14px;font-weight:600;font-size:.92rem;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.undo{display:flex;align-items:center;gap:6px;z-index:5;top:calc(var(--st) + 70px)}
+.undo{position:absolute;overflow:hidden;padding-bottom:14px}
+.undotime{position:absolute;left:0;bottom:0;height:4px;width:100%;background:var(--ok);transform-origin:left}
+@media (prefers-reduced-motion:no-preference){.undotime.run{animation:undoshrink 10s linear forwards}@keyframes undoshrink{from{transform:scaleX(1)}to{transform:scaleX(0)}}}
+.undo button{background:var(--ok);color:var(--ok-bg);padding:8px 14px;border-radius:10px;font-size:.92rem}
 .toast.ok{background:var(--ok-bg);color:var(--ok)}.toast.warn{background:var(--warn-bg);color:var(--warn)}.toast.err{background:var(--err-bg);color:var(--err)}
 
 /* painéis */
@@ -213,6 +218,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   <input type="file" id="foto" accept="image/*" capture="environment" hidden>
 
   <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
+  <div class="toast ok undo" id="undoBar" hidden><span>Chamada finalizada · </span><button id="undoBtn">Desfazer</button><i class="undotime" id="undoTime"></i></div>
 
   <!-- painel: lista -->
   <div class="sheetwrap" id="listSheet" hidden>
@@ -728,23 +734,38 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; };
   const horaFin = f => String(f.hora || "").slice(0, 5);
 
+  // Nomes de quem falta. Turma sem leituras (sem_chamada): a planilha não manda ausentes, então vêm
+  // dos alunos ativos da lista em memória (null se a lista não estiver carregada).
+  function faltantes(st){
+    if (!st.sem_chamada) return st.ausentes.map(a => a.n || a.m);
+    if (!alunosMem) return null;
+    const t = chaveT(st.turma), nomes = [];
+    alunosMem.forEach(a => { if (a.s !== "Transferido" && chaveT(a.t) === t) nomes.push(a.n || ""); });
+    return nomes.filter(Boolean).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }
   function detalhe(it, k){
     const d = el("div", "det"), st = it.st;
     if (st) {
-      if (st.sem_chamada) { d.appendChild(el("h4", "", "Faltam")); d.appendChild(el("p", "vazio", "Ninguém foi lido nesta turma hoje.")); }
-      else {
-        d.appendChild(el("h4", "", "Faltam (" + st.ausentes.length + ")"));
-        if (!st.ausentes.length) d.appendChild(el("p", "vazio", "Ninguém falta."));
-        else { const ul = el("ul", "faltam"); st.ausentes.forEach(a => ul.appendChild(el("li", "", a.n || a.m))); d.appendChild(ul); }
+      const nomes = faltantes(st);
+      if (st.sem_chamada) {
+        d.appendChild(el("h4", "", "Ainda não registrados" + (nomes ? " (" + nomes.length + ")" : "")));
+        if (!nomes) d.appendChild(el("p", "vazio", "Ninguém foi lido nesta turma hoje."));
+      } else {
+        d.appendChild(el("h4", "", "Faltam (" + nomes.length + ")"));
+        if (!nomes.length) d.appendChild(el("p", "vazio", "Ninguém falta."));
       }
+      if (nomes && nomes.length) { const ul = el("ul", "faltam"); nomes.forEach(n => ul.appendChild(el("li", "", n))); d.appendChild(ul); }
     }
     d.appendChild(el("h4", "", "Lidos neste celular (" + it.regs.length + ")"));
     if (!it.regs.length) d.appendChild(el("p", "vazio", "Nenhuma leitura neste celular."));
     else { const ul = el("ul"); it.regs.slice().sort((a, b) => a.hora.localeCompare(b.hora)).forEach((r, i) => ul.appendChild(linhaLida(r, i))); d.appendChild(ul); }
     if (st && st.finalizada) d.appendChild(el("p", "fin", "Já finalizada às " + horaFin(st.finalizada) + " por " + (st.finalizada.professor || "?")));
     else if (st && confirmando === k) {
-      const n = st.ausentes.length;
-      d.appendChild(el("div", "confirma", n ? "Faltam " + n + ": " + st.ausentes.map(a => a.n || a.m).join(", ") + ". Finalizar mesmo assim?" : "Todos presentes. Finalizar a chamada?"));
+      const nomes = faltantes(st), n = nomes ? nomes.length : 0;
+      const txt = st.sem_chamada
+        ? "Ninguém foi registrado nesta turma. " + (n ? "Faltam todos os " + n + ": " + nomes.join(", ") + ". " : "") + "Finalizar mesmo assim?"
+        : n ? "Faltam " + n + ": " + nomes.join(", ") + ". Finalizar mesmo assim?" : "Todos presentes. Finalizar a chamada?";
+      d.appendChild(el("div", "confirma", txt));
       const bs = el("div", "btns");
       const no = el("button", "b-sec", "Cancelar"); no.addEventListener("click", () => { confirmando = null; render(); });
       const yes = el("button", "b-pri", "Finalizar"); yes.disabled = finalizando; yes.addEventListener("click", () => confirmarFinalizar(st));
@@ -767,6 +788,31 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       if (statusMem) confirmando = k; else toast("Não consegui atualizar a lista. Tente de novo.", "err", 3000);
     } finally { finalizando = false; render(); }
   }
+  // "Chamada finalizada · Desfazer": 10 segundos para o professor se arrepender
+  let undoT = null, undoInfo = null;
+  function esconderDesfazer(){ clearInterval(undoT); undoInfo = null; $("undoBar").hidden = true; $("undoTime").classList.remove("run"); }
+  function mostrarDesfazer(turma, data){
+    undoInfo = { turma, data }; clearInterval(undoT);
+    const fim = Date.now() + 10000, bt = $("undoBtn"), tm = $("undoTime");
+    const tic = () => { const r = Math.ceil((fim - Date.now()) / 1000); if (r <= 0) esconderDesfazer(); else bt.textContent = "Desfazer (" + r + ")"; };
+    tic(); $("undoBar").hidden = false;
+    tm.classList.remove("run"); void tm.offsetWidth; tm.classList.add("run");   // reinicia a barrinha
+    undoT = setInterval(tic, 250);
+  }
+  $("undoBtn").addEventListener("click", async () => {
+    const u = undoInfo; if (!u) return;
+    $("undoBtn").disabled = true;
+    try {
+      const j = await chamar({ acao: "desfinalizar", turma: u.turma, data: u.data });
+      if (j && j.ok) { esconderDesfazer(); toast("Chamada reaberta", "ok", 2500); atualizarStatus(); }
+      else if (j && j.erro === "chave") { esconderDesfazer(); chaveRuim = true; pill(); toast("A planilha não aceitou a chave.", "err", 3000); }
+      else if (j && j.erro === "prazo") { esconderDesfazer(); toast("Passou o tempo de desfazer.", "err", 3000); }
+      else if (j && j.erro === "outro_professor") { esconderDesfazer(); toast("Só quem finalizou pode desfazer.", "err", 3000); }
+      else if (j && j.erro === "nao_finalizada") { esconderDesfazer(); toast("A chamada já não estava finalizada.", "warn", 3000); atualizarStatus(); }
+      else throw new Error("resposta inválida");
+    } catch(e) { toast("Sem conexão, tente de novo.", "err", 3000); }
+    $("undoBtn").disabled = false;
+  });
   async function confirmarFinalizar(st){
     if (finalizando) return; finalizando = true; render();
     try {
@@ -774,7 +820,8 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       if (j && j.erro === "chave") { chaveRuim = true; pill(); toast("A planilha não aceitou a chave.", "err", 3000); }
       else if (j && j.erro === "turma") toast("Turma não encontrada na planilha.", "err", 3000);
       else if (!j || !j.ok) throw new Error("resposta inválida");
-      else toast(j.ja_finalizada ? "Já finalizada às " + horaFin(j) + " por " + (j.professor || "?") : "Chamada finalizada", "ok", 3000);
+      else if (j.ja_finalizada) toast("Já finalizada às " + horaFin(j) + " por " + (j.professor || "?"), "ok", 3000);
+      else mostrarDesfazer(st.turma, hojeISO());
     } catch(e) { toast("Sem conexão, tente de novo.", "err", 3000); }
     confirmando = null; finalizando = false;
     await atualizarStatus(); render();

@@ -135,6 +135,11 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 .manualrow{display:flex;gap:8px}
 .manualrow input{flex:1;min-width:0}
 .manualrow button{background:var(--ink);color:var(--ink-fg)}
+.card .who .nome{flex-basis:100%}
+.card .val.nm{font-family:var(--font);font-size:1.35rem;font-weight:700;line-height:1.25}
+.card .dup.err{background:var(--err-bg);color:var(--err)}
+.card .nota{color:var(--muted);font-size:.82rem}
+.code .nm{display:block;font-family:var(--font);font-weight:600}
 .hintcam #cfgCancel{margin-top:12px;pointer-events:auto;padding:9px 18px}
 </style>
 </head>
@@ -169,10 +174,12 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 
   <div class="card" id="card" hidden role="dialog" aria-label="Confirmar presença">
     <div class="who">
+      <div class="nome" id="cNomeBox"><span class="lbl">Aluno</span><span class="val nm" id="cNome"></span></div>
       <div><span class="lbl">Matrícula</span><span class="val" id="cCodigo"></span></div>
-      <div><span class="lbl">Turma</span><span class="val" id="cTurma"></span></div>
+      <div id="cTurmaBox"><span class="lbl">Turma</span><span class="val" id="cTurma"></span></div>
     </div>
-    <div class="dup" id="cDup" hidden>Esse aluno já está na lista de hoje.</div>
+    <div class="dup" id="cDup" hidden></div>
+    <div class="nota" id="cNota" hidden>Lista de alunos não carregada: mostrando só a matrícula.</div>
     <div class="btns">
       <button class="b-sec" id="cNo">Cancelar</button>
       <button class="b-pri" id="cYes">Confirmar</button>
@@ -298,7 +305,6 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     return execOk.test(exec) && chave && !/\s/.test(chave) ? { exec, chave } : null;
   }
   const doDia = () => regs.filter(r => r.data === hojeISO());
-  const jaTem = p => doDia().some(r => r.matricula === p.matricula);
 
   let toastT;
   function toast(msg, kind, ms){ const t = $("toast"); t.textContent = msg; t.className = "toast " + kind; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms || 2200); }
@@ -404,10 +410,9 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
         }
         const p = txt && parse(txt, "QR");
         if (p) {
-          const key = p.matricula;
-          // mesma carteirinha ainda na frente da câmera: ignora em silêncio
-          if (key === lastText && (Date.now() - lastTime < 2500 || jaTem(p))) { lastTime = Date.now(); await sleep(60); continue; }
-          lastText = key; lastTime = Date.now();
+          // mesma carteirinha ainda na frente da câmera (cartão já fechado): ignora em silêncio
+          const agora = Date.now();
+          if (p.matricula === ultimaMat && agora - vistoEm < 3000) { vistoEm = agora; await sleep(60); continue; }
           achou(p); break;
         }
       }
@@ -423,31 +428,58 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     try { video.pause(); } catch(e) {}
     $("target").classList.add("hit"); $("hintcam").hidden = true;
   }
+  let ultimaMat = "", vistoEm = 0;   // última carteirinha tratada e a última vez que a câmera a viu
+
+  // O que fazer com essa matrícula: transferido > já lida hoje > fora da lista > ok
+  function situacao(p){
+    const aluno = alunosMem ? alunosMem.get(p.matricula) || null : null;
+    const reg = doDia().find(r => r.matricula === p.matricula) || null;
+    let tipo = "ok";
+    if (aluno && aluno.s === "Transferido") tipo = "transferido";
+    else if (reg) tipo = "repetida";
+    else if (alunosMem && !aluno) tipo = "fora";
+    return { tipo, aluno, reg };
+  }
+  // turma que vai na lista do dia (só a turma, nunca o nome)
+  function completar(p, st){
+    p.turma = st.aluno ? (st.aluno.t || "Sem turma") : st.tipo === "fora" ? "Fora da lista" : p.turma;
+  }
   function achou(p){
     scanning = false; congelar();
-    const dup = jaTem(p);
-    apito(!dup);
-    if (!askConfirm && !dup) { registrar(p); setTimeout(retomar, 550); return; }
+    ultimaMat = p.matricula; vistoEm = Date.now();
+    const st = situacao(p); completar(p, st);
+    apito(st.tipo === "ok");
+    const registra = st.tipo === "ok" || st.tipo === "fora";
+    if (!askConfirm && registra) { registrar(p, st.tipo === "fora"); setTimeout(retomar, 550); return; }
     pending = p;
-    $("cCodigo").textContent = p.matricula; $("cTurma").textContent = p.turma;
-    $("cDup").hidden = !dup; $("cYes").hidden = dup; $("cNo").textContent = dup ? "Ok" : "Cancelar";
+    $("cNomeBox").hidden = !st.aluno; $("cNome").textContent = st.aluno ? st.aluno.n : "";
+    $("cCodigo").textContent = p.matricula;
+    $("cTurmaBox").hidden = !st.aluno; $("cTurma").textContent = st.aluno ? (st.aluno.t || "") : "";
+    const av = $("cDup");
+    av.hidden = st.tipo === "ok";
+    av.className = "dup" + (st.tipo === "transferido" ? " err" : "");
+    av.textContent = st.tipo === "transferido" ? "Aluno transferido" : st.tipo === "repetida" ? "Já registrado às " + st.reg.hora.slice(0, 5) : st.tipo === "fora" ? "⚠️ Não está na lista de alunos" : "";
+    $("cNota").hidden = !!alunosMem;
+    $("cYes").hidden = !registra; $("cNo").textContent = registra ? "Cancelar" : "Ok";
     $("bottombar").hidden = true; $("card").hidden = false;
   }
   function retomar(){
-    pending = null; $("card").hidden = true; $("bottombar").hidden = false;
+    pending = null; $("card").hidden = true; $("bottombar").hidden = false; vistoEm = Date.now();
     $("target").classList.remove("hit");
     if (stream) { $("hintcam").hidden = false; video.play().catch(() => {}); scanning = true; loop(); }
     else { still.hidden = true; $("start").hidden = false; }
   }
-  $("cYes").addEventListener("click", () => { if (pending) registrar(pending); retomar(); });
+  $("cYes").addEventListener("click", () => { if (pending) registrar(pending, pending.turma === "Fora da lista"); retomar(); });
   $("cNo").addEventListener("click", retomar);
-  $("goBtn").addEventListener("click", () => { setModo(false); iniciar(); });
+  $("goBtn").addEventListener("click", () => { setModo(false); iniciar(); baixarAlunos(true); });
 
-  function registrar(p){
+  function registrar(p, fora){
     const r = { id: uid(), turma: p.turma, matricula: p.matricula, data: hojeISO(), hora: new Date().toTimeString().slice(0, 8), forma: p.forma || "QR", sent: false };
     regs.push(r); store(K.regs, regs);
     queue.push({ op: "add", reg: { id: r.id, matricula: r.matricula, data: r.data, hora: r.hora, forma: r.forma } }); store(K.queue, queue);
-    toast("✓ " + p.matricula + (p.turma !== "Sem turma" ? " · " + p.turma : ""), "ok", 1400);
+    const nome = alunosMem && alunosMem.get(p.matricula);
+    if (fora) toast("⚠️ " + p.matricula + " não está na lista de alunos", "warn", 2500);
+    else toast("✓ " + (nome ? nome.n : p.matricula) + (p.turma !== "Sem turma" ? " · " + p.turma : ""), "ok", 1600);
     render(); enviar();
   }
 
@@ -522,6 +554,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   function guardarCampos(){
     sheetUrl = $("sheetUrl").value.trim(); sheetKey = $("sheetKey").value.trim();
     store(K.url, sheetUrl); store(K.key, sheetKey); chaveRuim = false; pill(); atualizarInicio();
+    alunosMem = null; render(); if (tentouAlunos) baixarAlunos();   // outra planilha ou chave: lista nova
   }
   $("sheetUrl").value = sheetUrl; $("sheetKey").value = sheetKey;
   $("sheetUrl").addEventListener("change", () => { guardarCampos(); enviar(); });
@@ -551,6 +584,26 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     enviar().then(() => queue.length ? (chaveRuim ? status("A planilha não aceitou a chave.", "err") : status("Ainda sem conexão. Tento de novo sozinho.", "warn")) : status("Tudo enviado.", "ok"));
   });
 
+  // ---------- lista de alunos (SÓ em memória: nunca em localStorage) ----------
+  let alunosMem = null, baixando = false, tentouAlunos = false, retryAlunosT = null;
+  async function baixarAlunos(forcar){
+    tentouAlunos = true;
+    if (!configurado() || chaveRuim || baixando || (alunosMem && !forcar)) return;
+    if (navigator.onLine === false) { agendarAlunos(); return; }
+    baixando = true;
+    try {
+      const j = await chamar({ acao: "alunos" });
+      if (j && j.erro === "chave") { chaveRuim = true; baixando = false; pill(); return; }
+      if (!j || !j.ok || !Array.isArray(j.alunos)) throw new Error("resposta inválida");
+      const m = new Map();
+      j.alunos.forEach(a => { const k = String(a.m || "").trim().toUpperCase(); if (k && !m.has(k)) m.set(k, { n: String(a.n || ""), t: String(a.t || ""), s: String(a.s || "") }); });
+      alunosMem = m; baixando = false; clearTimeout(retryAlunosT); render();
+    } catch(e) { baixando = false; agendarAlunos(); }
+  }
+  function agendarAlunos(){ clearTimeout(retryAlunosT); retryAlunosT = setTimeout(baixarAlunos, 20000); }
+  window.addEventListener("online", () => { if (tentouAlunos) baixarAlunos(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && tentouAlunos) baixarAlunos(); });
+
   // ---------- configuração por QR ----------
   function setModo(on){
     modoConfig = on;
@@ -568,7 +621,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     setModo(false); pill(); atualizarInicio();
     abrir("setSheet");
     const j = await testar();
-    if (j.ok) { const msg = "Configurado para: " + (j.professor || "?"); apito(true); status(msg, "ok"); toast(msg, "ok", 4000); enviar(); }
+    if (j.ok) { const msg = "Configurado para: " + (j.professor || "?"); apito(true); status(msg, "ok"); toast(msg, "ok", 4000); enviar(); baixarAlunos(true); }
     else apito(false);
   }
   $("cfgQrBtn").addEventListener("click", lerConfig);
@@ -592,18 +645,22 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     const p = parse($("manual").value, "Digitado"); $("manual").value = "";
     if (!p) return;
     $("typeSheet").hidden = true;
-    if (jaTem(p)) { apito(false); toast(p.matricula + " já está na lista de hoje.", "warn", 2500); }
-    else { apito(true); registrar(p); }
+    const st = situacao(p); completar(p, st);
+    if (st.tipo === "transferido") { apito(false); toast("Aluno transferido: não foi registrado.", "err", 3000); }
+    else if (st.tipo === "repetida") { apito(false); toast("Já registrado às " + st.reg.hora.slice(0, 5) + ".", "warn", 2500); }
+    else { apito(st.tipo === "ok"); registrar(p, st.tipo === "fora"); }
     if (stream && $("card").hidden) { scanning = true; loop(); }
   });
 
+  const infoDe = r => (alunosMem && alunosMem.get(r.matricula)) || null;
+  const turmaDe = r => { const a = infoDe(r); return a && a.t ? a.t : r.turma; };   // turma e nome: da memória, quando houver
   function render(){
     const lista = doDia();
     $("count").textContent = lista.length;
     const box = $("groups"); box.textContent = "";
     if (!lista.length) { const p = document.createElement("p"); p.className = "empty"; p.textContent = "Ninguém registrado hoje ainda."; box.appendChild(p); }
     const turmas = {};
-    lista.forEach(r => (turmas[r.turma] = turmas[r.turma] || []).push(r));
+    lista.forEach(r => (turmas[turmaDe(r)] = turmas[turmaDe(r)] || []).push(r));
     Object.keys(turmas).sort().forEach(t => {
       const g = document.createElement("div"); g.className = "group";
       const h = document.createElement("h3"); h.textContent = t;
@@ -612,7 +669,10 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       turmas[t].sort((a, b) => a.hora.localeCompare(b.hora)).forEach((r, i) => {
         const li = document.createElement("li");
         const n = document.createElement("span"); n.className = "n"; n.textContent = i + 1;
-        const cd = document.createElement("span"); cd.className = "code"; cd.textContent = r.matricula;
+        const cd = document.createElement("span"); cd.className = "code";
+        const ia0 = infoDe(r);
+        if (ia0 && ia0.n) { const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = ia0.n; cd.appendChild(nm); }
+        cd.appendChild(document.createTextNode(r.matricula));
         const tm = document.createElement("span"); tm.className = "time"; tm.textContent = r.hora.slice(0, 5);
         const sy = document.createElement("span"); sy.className = "sync" + (r.sent ? " sent" : ""); sy.title = r.sent ? "Na planilha" : "Esperando envio";
         const b = document.createElement("button"); b.className = "del"; b.textContent = "Tirar";
@@ -632,8 +692,8 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   }
 
   function csv(){
-    const l = doDia().slice().sort((a, b) => a.turma.localeCompare(b.turma) || a.hora.localeCompare(b.hora));
-    return "turma;matricula;data;hora\n" + l.map(r => [r.turma, r.matricula, r.data, r.hora].join(";")).join("\n") + "\n";
+    const l = doDia().slice().sort((a, b) => turmaDe(a).localeCompare(turmaDe(b)) || a.hora.localeCompare(b.hora));
+    return "turma;matricula;data;hora\n" + l.map(r => [turmaDe(r), r.matricula, r.data, r.hora].join(";")).join("\n") + "\n";
   }
   $("exportBtn").addEventListener("click", () => {
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + csv()], { type: "text/csv" }));

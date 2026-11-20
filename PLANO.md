@@ -127,6 +127,12 @@ uma leitura chega na planilha com a coluna Professor preenchida.
 > - Cartão de confirmação: nome e turma (da lista em memória). Aviso para aluno "Transferido".
 >   "Já registrado às HH:MM" se a matrícula já tiver sido lida hoje neste celular.
 > - Lista do dia guardada no celular só com matrícula, turma e hora (sem nome); na tela, o nome vem da memória.
+>
+> Combinado na implementação: a lista também é baixada logo depois de configurar o celular; sem internet, tenta de novo
+> quando a conexão volta (e a cada 20 s). Transferido: cartão com "Aluno transferido", apito grave, só "Ok", não registra.
+> Fora da lista (com a lista carregada): "⚠️ Não está na lista de alunos", pode confirmar (ou registra direto, com apito grave,
+> no modo sem confirmação). Carteirinha que continua na frente da câmera depois de fechar o cartão é ignorada em silêncio
+> até outra ser lida ou ela sumir por ~3 s.
 
 **Como testar:** gerar QR Codes de teste com as matrículas fictícias; conferir o nome no cartão; testar um transferido;
 desligar a internet antes de abrir e ver que funciona sem nomes.

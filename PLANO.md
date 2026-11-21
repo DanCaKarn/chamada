@@ -172,7 +172,7 @@ finalizar → fica 🟢 nos dois.
 
 ---
 
-### [ ] Etapa 7: App: Compartilhar presentes e ausentes
+### [x] Etapa 7: App: Compartilhar presentes e ausentes
 **Pedido para o Claude Code:**
 > Etapa 7 do PLANO.md: na Lista, botões "Compartilhar presentes" e "Compartilhar ausentes". Com turma aberta, perguntar
 > "Só <turma>" ou "Todas as turmas". Antes de montar, buscar o status atualizado (sem conexão: "Sem conexão: não dá para

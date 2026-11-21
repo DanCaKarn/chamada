@@ -134,6 +134,14 @@ li{display:grid;grid-template-columns:1.8rem 1fr auto auto auto;align-items:cent
 .det .vazio{color:var(--muted);font-size:.9rem;margin:4px 0}
 .det .fin{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-weight:600;margin:12px 0 0}
 .det .confirma{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:12px;margin-top:12px;font-weight:600;overflow-wrap:anywhere}
+.sharebox{display:flex;flex-direction:column;gap:10px}
+.sharebox .confirma{background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:12px;font-weight:600}
+.sharebox label{display:flex;align-items:center;gap:12px;padding:10px 4px;font-weight:600;border-top:1px solid var(--line)}
+.sharebox label.todas{border-top:none;border-bottom:2px solid var(--line)}
+.sharebox input[type=checkbox]{width:22px;height:22px;flex:none}
+.sharebox .lista{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 12px;max-height:45vh;overflow-y:auto}
+.sharebox textarea{width:100%;min-height:180px;font:inherit;font-size:16px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;-webkit-user-select:text;user-select:text}
+.sharebox .btns{display:flex;gap:10px}.sharebox .btns button{flex:1;padding:13px}
 .det .btns{display:flex;gap:10px;margin-top:12px}
 .det .btns button{flex:1;padding:13px}
 .empty{color:var(--muted);text-align:center;padding:24px 8px}
@@ -227,6 +235,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       <div class="sheetbody">
         <p class="aviso" id="listAviso" hidden></p>
         <div id="groups"></div>
+        <div id="shareBox"></div>
         <p class="help" id="listQuando"></p>
         <p class="help"><span class="sync" style="display:inline-block"></span> esperando envio &nbsp; <span class="sync sent" style="display:inline-block"></span> já está na planilha</p>
       </div>
@@ -685,9 +694,10 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   // ---------- painel Lista por turma ----------
   // Nomes dos ausentes vêm do status e ficam SÓ nesta variável (memória): nunca em localStorage.
   let statusMem = null, statusErro = null, statusP = null, statusT = null, turmaAberta = "", confirmando = null, finalizando = false;
+  let escolhaShare = null, previaTxt = null, compartilhando = false;   // nomes na mensagem: só em memória
   const listaAberta = () => !$("listSheet").hidden;
   const chaveT = t => String(t || "").trim().toUpperCase();
-  function pararLista(){ clearInterval(statusT); statusT = null; statusMem = null; statusErro = null; confirmando = null; }
+  function pararLista(){ clearInterval(statusT); statusT = null; statusMem = null; statusErro = null; confirmando = null; escolhaShare = null; previaTxt = null; }
   function atualizarStatus(){
     if (statusP) return statusP;
     if (!configurado() || chaveRuim || navigator.onLine === false) {
@@ -827,6 +837,98 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     await atualizarStatus(); render();
   }
 
+  // ---------- compartilhar (WhatsApp) ----------
+  const AVISO_SEM_CONEXAO = "Sem conexão: não dá para compartilhar agora";
+  function dataHoraAgora(){ const d = new Date(); return d.toLocaleDateString("pt-BR") + ", às " + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  const ptSort = (a, b) => a.localeCompare(b, "pt-BR");
+  function montarMensagem(tipo, turmas){
+    const pres = tipo === "presentes";
+    const linhas = ["*" + (pres ? "Presentes" : "Ausentes") + " – " + dataHoraAgora() + "*"];
+    const ord = turmas.slice().sort((a, b) => ptSort(a.turma, b.turma));
+    ord.filter(t => !t.sem_chamada).forEach(t => {
+      linhas.push("", (t.finalizada ? "🟢" : "🟡") + " *" + t.turma + "* · " + t.presentes + " de " + t.total + (t.finalizada ? "" : " (chamada em andamento)"));
+      const nomes = pres
+        ? (t.lista_presentes || []).slice().sort((a, b) => ptSort(a.n || a.m, b.n || b.m)).map(p => (p.n || p.m) + (p.atraso ? " (atraso)" : ""))
+        : t.ausentes.map(a => a.n || a.m).sort(ptSort);
+      if (nomes.length) nomes.forEach(n => linhas.push(n)); else linhas.push(pres ? "Ninguém presente" : "Todos presentes");
+    });
+    const sem = ord.filter(t => t.sem_chamada).map(t => t.turma);
+    if (sem.length) linhas.push("", "⚪ Sem chamada: " + sem.join(", "));
+    return linhas.join("\n");
+  }
+  async function copiarTexto(txt){
+    try { await navigator.clipboard.writeText(txt); toast("Mensagem copiada", "ok", 2500); return true; } catch(e) { return false; }
+  }
+  async function compartilhar(tipo, keys){
+    if (compartilhando) return;
+    escolhaShare = null; previaTxt = null;
+    if (!configurado() || chaveRuim || navigator.onLine === false) { toast(AVISO_SEM_CONEXAO, "err", 3000); render(); return; }
+    compartilhando = true; render();
+    let txt = null;
+    try {
+      await enviar();
+      if (!queue.length) await atualizarStatus();
+      if (!queue.length && statusMem) {
+        const ts = keys ? statusMem.turmas.filter(t => keys.has(chaveT(t.turma))) : statusMem.turmas;
+        txt = montarMensagem(tipo, ts);
+      }
+    } finally { compartilhando = false; }
+    if (txt === null || !listaAberta()) { if (txt === null) toast(AVISO_SEM_CONEXAO, "err", 3000); render(); return; }
+    try { if (navigator.share) { await navigator.share({ text: txt }); render(); return; } }
+    catch(e) { if (e && e.name === "AbortError") { render(); return; } }
+    // sem janela de compartilhar (ou o Safari recusou): copia; se não der, mostra a prévia para um toque novo
+    if (!navigator.share && await copiarTexto(txt)) { render(); return; }
+    previaTxt = txt; render();
+  }
+  function renderShare(ord){
+    const box = $("shareBox"); box.textContent = ""; box.className = "sharebox";
+    if (!ord.length && !statusMem) return;
+    const pedir = async tipo => {
+      if (!statusMem) {
+        if (!configurado() || chaveRuim || navigator.onLine === false) { toast(AVISO_SEM_CONEXAO, "err", 3000); return; }
+        await atualizarStatus();
+        if (!statusMem) { toast(AVISO_SEM_CONEXAO, "err", 3000); return; }
+      }
+      // já vêm marcadas as turmas lidas hoje neste celular; se não houver nenhuma, todas
+      const todas = statusMem.turmas.map(t => chaveT(t.turma)), locais = new Set(doDia().map(r => chaveT(turmaDe(r))));
+      const ini = todas.filter(k => locais.has(k));
+      escolhaShare = { tipo, sel: new Set(ini.length ? ini : todas) }; previaTxt = null; render();
+    };
+    const row = el("div", "row");
+    const b1 = el("button", "", "Compartilhar presentes"), b2 = el("button", "", "Compartilhar ausentes");
+    b1.disabled = b2.disabled = compartilhando;
+    b1.addEventListener("click", () => pedir("presentes")); b2.addEventListener("click", () => pedir("ausentes"));
+    row.append(b1, b2); box.appendChild(row);
+    if (escolhaShare && statusMem) {
+      const e = escolhaShare, ts = statusMem.turmas.slice().sort((x, y) => ptSort(x.turma, y.turma));
+      box.appendChild(el("div", "confirma", "Compartilhar " + e.tipo + " de quais turmas?"));
+      const lista = el("div", "lista");
+      const caixa = (rot, marcada, fn, cls) => {
+        const lb = el("label", cls || ""), cb = el("input"); cb.type = "checkbox"; cb.checked = marcada;
+        cb.addEventListener("change", () => { fn(cb.checked); render(); });
+        lb.append(cb, el("span", "", rot)); return lb;
+      };
+      lista.appendChild(caixa("Todas as turmas", ts.length > 0 && ts.every(t => e.sel.has(chaveT(t.turma))), on => { ts.forEach(t => on ? e.sel.add(chaveT(t.turma)) : e.sel.delete(chaveT(t.turma))); }, "todas"));
+      ts.forEach(t => lista.appendChild(caixa((t.finalizada ? "🟢" : t.sem_chamada ? "⚪" : "🟡") + " " + t.turma, e.sel.has(chaveT(t.turma)), on => { on ? e.sel.add(chaveT(t.turma)) : e.sel.delete(chaveT(t.turma)); })));
+      box.appendChild(lista);
+      const bs = el("div", "btns");
+      const no = el("button", "b-sec", "Cancelar"), ok = el("button", "b-pri", "Compartilhar");
+      ok.disabled = !e.sel.size;
+      no.addEventListener("click", () => { escolhaShare = null; render(); });
+      ok.addEventListener("click", () => compartilhar(e.tipo, new Set(e.sel)));
+      bs.append(no, ok); box.appendChild(bs);
+    }
+    if (previaTxt) {
+      const ta = el("textarea"); ta.readOnly = true; ta.value = previaTxt; box.appendChild(ta);
+      const bs = el("div", "btns");
+      const sh = el("button", "b-pri", "Compartilhar"), cp = el("button", "b-sec", "Copiar");
+      sh.hidden = !navigator.share;
+      sh.addEventListener("click", async () => { try { await navigator.share({ text: previaTxt }); previaTxt = null; render(); } catch(e) { if (e && e.name === "AbortError") return; if (!(await copiarTexto(previaTxt))) { ta.focus(); ta.select(); } } });
+      cp.addEventListener("click", async () => { if (!(await copiarTexto(previaTxt))) { ta.focus(); ta.select(); toast("Copie o texto selecionado", "warn", 3000); } });
+      bs.append(sh, cp); box.appendChild(bs);
+    }
+  }
+
   function render(){
     const lista = doDia();
     $("count").textContent = lista.length;
@@ -843,6 +945,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       itens.get(k).regs.push(r);
     });
     const ord = [...itens.entries()].sort((a, b) => (b[1].regs.length > 0) - (a[1].regs.length > 0) || a[1].nome.localeCompare(b[1].nome, "pt-BR"));
+    renderShare(ord);
     const box = $("groups"); box.textContent = "";
     if (!ord.length) box.appendChild(el("p", "empty", statusP ? "Carregando…" : "Ninguém registrado hoje ainda."));
     ord.forEach(([k, it]) => {

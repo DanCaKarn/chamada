@@ -24,7 +24,7 @@ Toda conversa é um **POST** para o `/exec` com um JSON que sempre leva a `chave
 | `teste` | `chave` | `ok`, nome da planilha, **nome do professor** |
 | `enviar` | `ops`: `add` `{id, matricula, data, hora, forma}` / `del` `{id}` | `ok`, gravadas, apagadas |
 | `alunos` | — | `ok`, `alunos: [{m: matrícula, n: nome, t: turma, s: situação}]` — **todos**, inclusive transferidos (`s` = `"Transferido"`, senão `""`), para o app poder avisar na leitura |
-| `status` | `data` (`AAAA-MM-DD`) | `ok`, `data`, `turmas: [{turma, total, presentes, sem_chamada, ausentes: [{m, n}], finalizada}]` |
+| `status` | `data` (`AAAA-MM-DD`) | `ok`, `data`, `turmas: [{turma, total, presentes, lista_presentes: [{m, n, hora, atraso}], sem_chamada, ausentes: [{m, n}], finalizada}]` |
 | `finalizar` | `turma`, `data` | `ok`, `ja_finalizada`, `professor`, `hora` |
 | `desfinalizar` | `turma`, `data` | `ok`, `desfeita` |
 
@@ -34,6 +34,7 @@ Toda conversa é um **POST** para o `/exec` com um JSON que sempre leva a `chave
   e todos os ativos entram em `ausentes`.
 - `finalizar` **não duplica**: se a turma já estava finalizada na data, não grava outra linha e responde
   `ja_finalizada: true` com o professor e a hora da primeira vez.
+- `status`: `presentes` é o **número**; `lista_presentes` traz quem está presente (só alunos ativos; `hora` = `HH:mm:ss`, `atraso` = true/false; vazia em `sem_chamada`).
 - `desfinalizar`: apaga a linha da turma+data na aba Chamadas. Só aceita se a chave for do **mesmo professor** que finalizou e se passaram
   **no máximo 2 minutos** da finalização; senão `outro_professor` / `prazo`. Sem finalização: `nao_finalizada`. Ao desfazer, desmarca o Atraso
   das leituras posteriores à finalização desfeita. O app oferece "Desfazer" por 10 s depois de finalizar.
@@ -173,10 +174,11 @@ finalizar → fica 🟢 nos dois.
 
 ### [ ] Etapa 7: App: Compartilhar presentes e ausentes
 **Pedido para o Claude Code:**
-> Etapa 7 do PLANO.md: na Lista, botões "Compartilhar presentes" e "Compartilhar ausentes". Perguntar
-> "Só esta turma" ou "Todas as turmas". Montar o texto (formato de mensagem de WhatsApp, com nomes, hora do
-> momento e status 🟢🟡⚪ de cada turma; turmas sem chamada só aparecem como "sem chamada") e abrir a janela
-> de compartilhar do sistema (navigator.share). Se falhar, copiar para a área de transferência.
+> Etapa 7 do PLANO.md: na Lista, botões "Compartilhar presentes" e "Compartilhar ausentes". Com turma aberta, perguntar
+> "Só <turma>" ou "Todas as turmas". Antes de montar, buscar o status atualizado (sem conexão: "Sem conexão: não dá para
+> compartilhar agora"). Mensagem de WhatsApp com nomes: título com data e hora ("Presentes – 20/11/2026, às 08:15"),
+> por turma 🟢/🟡 e "X de Y", nomes em ordem alfabética, "(atraso)" nos presentes, "(chamada em andamento)" nas 🟡; turmas
+> sem chamada só no fim, numa linha "⚪ Sem chamada: …". Abrir navigator.share; se não der, copiar ("Mensagem copiada").
 
 **Como testar:** compartilhar no iPhone para você mesmo no WhatsApp; conferir o texto das duas mensagens.
 

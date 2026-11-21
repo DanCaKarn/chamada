@@ -19,7 +19,7 @@
  *
  * Ações: teste, enviar, alunos, status, finalizar, desfinalizar.
  *   alunos     todos os alunos (inclusive transferidos, s = "Transferido").
- *   status     por turma, numa data: total de ativos, presentes, ausentes e se está finalizada.
+ *   status     por turma, numa data: total de ativos, presentes (número e lista com hora e atraso), ausentes e se está finalizada.
  *   finalizar  grava a turma em Chamadas; se já estava finalizada naquela data, não duplica.
  *   desfinalizar  desfaz a finalização (só o mesmo professor, até 2 minutos depois); desmarca o Atraso.
  * Atraso: presença lida DEPOIS da hora em que a turma foi finalizada (pela hora da leitura, não do envio).
@@ -240,10 +240,12 @@ function status_(iso) {
   const data = formatarData_(iso);
   const planilha = SpreadsheetApp.getActiveSpreadsheet();
 
-  // matrículas com presença nessa data
-  const presentes = new Set();
-  lerRecentes_(planilha.getSheetByName(ABA_PRESENCAS)).linhas.forEach(l => {
-    if (dataTexto_(l[1]) === data) presentes.add(String(l[3]).trim().toUpperCase());
+  // matrículas com presença nessa data -> { hora, atraso }
+  const presentes = new Map();
+  lerRecentes_(planilha.getSheetByName(ABA_PRESENCAS), CAB_PRESENCAS.length).linhas.forEach(l => {
+    if (dataTexto_(l[1]) !== data) return;
+    const m = String(l[3]).trim().toUpperCase();
+    if (!presentes.has(m)) presentes.set(m, { hora: horaTexto_(l[2]), atraso: String(l[CAB_PRESENCAS.length - 1]).trim() === 'Sim' });
   });
 
   const finalizadas = finalizadasDaData_(data);
@@ -269,6 +271,10 @@ function status_(iso) {
       total: ativos.length,
       presentes: presentesAtivos,
       sem_chamada: semChamada,
+      lista_presentes: semChamada ? [] : ativos.filter(a => presentes.has(a.m.toUpperCase())).map(a => {
+        const p = presentes.get(a.m.toUpperCase());
+        return { m: a.m, n: a.n, hora: p.hora, atraso: p.atraso };
+      }),
       ausentes: semChamada ? [] : ativos.filter(a => !presentes.has(a.m.toUpperCase())).map(a => ({ m: a.m, n: a.n })),
       finalizada: fin
     };
@@ -454,11 +460,11 @@ function cabecalho_(aba, titulos) {
 
 // Lê só as últimas LINHAS_RECENTES linhas (colunas ID a Matrícula).
 // Devolve a primeira linha lida (número na planilha) e os valores.
-function lerRecentes_(aba) {
+function lerRecentes_(aba, colunas) {
   const ultima = aba.getLastRow();
   if (ultima < 2) return { inicio: 2, linhas: [] };
   const inicio = Math.max(2, ultima - LINHAS_RECENTES + 1);
-  return { inicio: inicio, linhas: aba.getRange(inicio, 1, ultima - inicio + 1, 4).getValues() };
+  return { inicio: inicio, linhas: aba.getRange(inicio, 1, ultima - inicio + 1, colunas || 4).getValues() };
 }
 
 // Chave de duplicidade: data + matrícula.

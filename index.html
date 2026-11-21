@@ -53,7 +53,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-of
 .target.hit .laser{display:none}
 
 /* barras */
-.topbar{position:absolute;left:0;right:0;top:0;padding:calc(var(--st) + 10px) calc(var(--sr) + 14px) 10px calc(var(--sl) + 14px);display:flex;align-items:center;gap:10px;background:linear-gradient(rgba(0,0,0,.55),transparent)}
+.topbar{z-index:2;position:absolute;left:0;right:0;top:0;padding:calc(var(--st) + 10px) calc(var(--sr) + 14px) 10px calc(var(--sl) + 14px);display:flex;align-items:center;gap:10px;background:linear-gradient(rgba(0,0,0,.55),transparent)}
 .brand{display:flex;flex-direction:column;min-width:0;flex:1}
 .brand b{font-size:1.05rem;letter-spacing:-.01em}
 .brand span{font-size:.8rem;color:var(--on-cam-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -62,6 +62,18 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-of
 .pill.ok i{background:#3ddc84}.pill.wait i{background:#f0b65a}.pill.off i{background:#ff8a80}
 .iconbtn{width:42px;height:42px;padding:0;border-radius:50%;background:var(--glass);display:grid;place-items:center;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);flex:none}
 .iconbtn svg{width:22px;height:22px}
+#somBtn{font-size:1.2rem;line-height:1}
+@media (max-width:400px){.pill #pillText{display:none}.pill{padding:10px}}
+@media (max-width:360px){.topbar{gap:6px;padding-left:calc(var(--sl) + 10px);padding-right:calc(var(--sr) + 10px)}}
+@media (max-width:339px){.brand b{display:none}}
+.start .cont{color:var(--hit);font-weight:700;font-size:1.05rem}
+.start .turmas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:.95rem;text-align:left}
+.start .aviso{margin:0;color:#f0b65a;font-weight:600;font-size:.95rem}
+.fim{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:24px}
+.fimcard{background:var(--surface);color:var(--fg);border-radius:20px;padding:20px;max-width:360px;display:flex;flex-direction:column;gap:16px;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+.fimcard p{margin:0;font-weight:600;font-size:1.05rem}
+.fimcard button{background:var(--ink);color:var(--ink-fg);padding:14px}
+.field select{font:inherit;font-size:16px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:100%}
 .hintcam{position:absolute;left:0;right:0;top:calc(46% + min(36vw,26vh,180px) + 18px);text-align:center;font-size:.9rem;color:var(--on-cam-dim);padding:0 24px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .bottombar{position:absolute;left:0;right:0;bottom:0;padding:14px calc(var(--sr) + 14px) calc(var(--sb) + 14px) calc(var(--sl) + 14px);display:flex;align-items:center;gap:10px;background:linear-gradient(transparent,rgba(0,0,0,.6))}
 .counter{flex:1;display:flex;flex-direction:column;min-width:0}
@@ -93,7 +105,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-of
 @media (prefers-reduced-motion:no-preference){.card{animation:up .18s ease-out}@keyframes up{from{transform:translateY(30px);opacity:.4}to{transform:none;opacity:1}}}
 
 /* aviso */
-.toast{position:absolute;left:50%;top:calc(var(--st) + 70px);transform:translateX(-50%);max-width:calc(100% - 32px);width:max-content;padding:10px 16px;border-radius:14px;font-weight:600;font-size:.92rem;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.toast{z-index:6;position:absolute;left:50%;top:calc(var(--st) + 70px);transform:translateX(-50%);max-width:calc(100% - 32px);width:max-content;padding:10px 16px;border-radius:14px;font-weight:600;font-size:.92rem;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.3)}
 .undo{display:flex;align-items:center;gap:6px;z-index:5;top:calc(var(--st) + 70px)}
 .undo{position:absolute;overflow:hidden;padding-bottom:14px}
 .undotime{position:absolute;left:0;bottom:0;height:4px;width:100%;background:var(--ok);transform-origin:left}
@@ -102,7 +114,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-of
 .toast.ok{background:var(--ok-bg);color:var(--ok)}.toast.warn{background:var(--warn-bg);color:var(--warn)}.toast.err{background:var(--err-bg);color:var(--err)}
 
 /* painéis */
-.sheetwrap{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheetwrap{z-index:4;position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
 .sheet{background:var(--bg);color:var(--fg);width:100%;max-width:560px;max-height:86%;border-radius:22px 22px 0 0;display:flex;flex-direction:column;-webkit-user-select:text;user-select:text}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .2s ease-out}}
 .sheethead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px calc(var(--sr) + 18px) 10px calc(var(--sl) + 18px)}
@@ -185,6 +197,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     <button class="iconbtn" id="torchBtn" hidden aria-label="Lanterna">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12v4l-3 5v11H9V11L6 6z"/><path d="M12 14v3"/></svg>
     </button>
+    <button class="iconbtn" id="somBtn" aria-label="Som ligado" aria-pressed="true">🔊</button>
     <button class="iconbtn" id="setBtn" aria-label="Ajustes">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
     </button>
@@ -217,6 +230,9 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   <div class="start" id="start">
     <img class="logo" src="icon-192.png" alt="">
     <h1>Chamada QR</h1>
+    <p class="cont" id="startCount" hidden></p>
+    <ul class="turmas" id="startTurmas" hidden></ul>
+    <p class="aviso" id="startFila" hidden></p>
     <p id="startMsg">Leia o QR Code das carteirinhas e a presença vai direto pra planilha.</p>
     <button class="go" id="goBtn">Iniciar leitura</button>
     <button class="go" id="cfgBtn" hidden>Configurar este celular</button>
@@ -225,6 +241,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   </div>
   <input type="file" id="foto" accept="image/*" capture="environment" hidden>
 
+  <div class="fim" id="fimChamada" hidden role="dialog" aria-label="Chamada finalizada"><div class="fimcard"><p id="fimTxt"></p><button id="fimOk">Ok</button></div></div>
   <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
   <div class="toast ok undo" id="undoBar" hidden><span>Chamada finalizada · </span><button id="undoBtn">Desfazer</button><i class="undotime" id="undoTime"></i></div>
 
@@ -276,6 +293,11 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
           <span>Confirmar cada leitura<small>Desligado: registra direto depois do apito, mais rápido na fila</small></span>
           <input type="checkbox" id="askConfirm" checked>
         </label>
+        <div class="field">
+          <label for="autoMin">Encerrar sozinho depois de</label>
+          <select id="autoMin"><option value="2">2 minutos</option><option value="5">5 minutos</option><option value="10">10 minutos</option><option value="30">30 minutos</option></select>
+          <p class="help">Conta o tempo com o app minimizado. Ao encerrar, a câmera desliga e os nomes saem da memória.</p>
+        </div>
         <p class="help">As presenças ficam guardadas no celular só até chegarem na planilha. Sem internet, elas esperam na fila e são enviadas sozinhas quando a conexão voltar.</p>
       </div>
     </div>
@@ -288,7 +310,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 (function(){
   "use strict";
   const $ = id => document.getElementById(id);
-  const K = { regs: "cqr-regs", queue: "cqr-queue", url: "cqr-url", key: "cqr-key", ask: "cqr-ask" };
+  const K = { regs: "cqr-regs", queue: "cqr-queue", url: "cqr-url", key: "cqr-key", ask: "cqr-ask", auto: "cqr-auto", som: "cqr-som" };
   const load = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e) { return d; } };
   const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} };
 
@@ -299,10 +321,20 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   let chaveRuim = false;             // a planilha recusou a chave: não adianta insistir
   let modoConfig = false;            // câmera lendo o QR de configuração (e não carteirinhas)
   let askConfirm = load(K.ask, true);
+  let somOn = load(K.som, true) !== false;
+  let autoMin = Number(load(K.auto, 5)); if ([2, 5, 10, 30].indexOf(autoMin) < 0) autoMin = 5;
+  let encerrado = false, ocultoEm = 0;   // encerrado sozinho (câmera e nomes já limpos)
+  // Encerrar sozinho: registrado ANTES dos outros ouvintes de visibilitychange, para limpar antes de eles baixarem a lista de novo
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { ocultoEm = Date.now(); return; }
+    const fora = ocultoEm ? Date.now() - ocultoEm : 0; ocultoEm = 0;
+    if (fora > autoMin * 60000 && !encerrado && (stream || alunosMem)) encerrar();
+  });
 
   const pad = n => String(n).padStart(2, "0");
   const hojeISO = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
-  const hojeTxt = () => { const t = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }); return t.charAt(0).toUpperCase() + t.slice(1); };
+  const estreito = window.matchMedia("(max-width:359px)");
+  const hojeTxt = () => { const t = new Date().toLocaleDateString("pt-BR", estreito.matches ? { weekday: "short", day: "numeric", month: "short" } : { weekday: "long", day: "numeric", month: "long" }); return t.charAt(0).toUpperCase() + t.slice(1); };
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   // formato antigo (turma/código) -> formato novo: codigo vira matricula, a turma agora vem da planilha
   queue = queue.map(o => {
@@ -339,7 +371,23 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   // ---------- som ----------
   let actx = null;
   function audioOn(){ try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== "running") actx.resume(); } catch(e) {} }
+  // Vibração: navigator.vibrate (Android) ou, no iPhone com iOS 18, o toque tátil de um <input switch>
+  // (o iOS só dá o toque se a ação vier de um gesto do usuário)
+  let hapticLabel = null;
+  function tremer(ok){
+    try { if (navigator.vibrate) { navigator.vibrate(ok ? 70 : [60, 50, 60]); return; } } catch(e) {}
+    try {
+      if (!hapticLabel) {
+        const l = document.createElement("label"), i = document.createElement("input");
+        l.setAttribute("aria-hidden", "true"); l.style.cssText = "position:fixed;left:-100px;top:-100px;width:1px;height:1px;opacity:0;pointer-events:none";
+        i.type = "checkbox"; i.setAttribute("switch", ""); l.appendChild(i); document.body.appendChild(l); hapticLabel = l;
+      }
+      hapticLabel.click(); if (!ok) setTimeout(() => hapticLabel.click(), 90);
+    } catch(e) {}
+  }
   function apito(ok){
+    tremer(ok);
+    if (!somOn) return;
     try {
       audioOn(); if (!actx) return;
       const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
@@ -350,8 +398,16 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       g.gain.setValueAtTime(.14, t + (ok ? .17 : .3)); g.gain.exponentialRampToValueAtTime(.0001, t + (ok ? .2 : .34));
       o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + .36);
     } catch(e) {}
-    try { navigator.vibrate && navigator.vibrate(ok ? 70 : [60, 50, 60]); } catch(e) {}
   }
+  function pintarSom(){
+    const b = $("somBtn"); b.textContent = somOn ? "🔊" : "🔇";
+    b.setAttribute("aria-pressed", String(somOn)); b.setAttribute("aria-label", somOn ? "Som ligado" : "Som desligado"); b.title = somOn ? "Som ligado" : "Som desligado";
+  }
+  $("somBtn").addEventListener("click", () => {
+    somOn = !somOn; store(K.som, somOn); pintarSom();
+    if (somOn) { audioOn(); apito(true); toast("Som ligado", "ok", 1500); } else toast("Som desligado: só vibra e avisa na tela", "warn", 2200);
+  });
+  pintarSom();
   document.addEventListener("visibilitychange", () => { if (!document.hidden && actx) actx.resume(); });
 
   // ---------- leitor ----------
@@ -504,7 +560,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   }
   $("cYes").addEventListener("click", () => { if (pending) registrar(pending, pending.turma === "Fora da lista"); retomar(); });
   $("cNo").addEventListener("click", retomar);
-  $("goBtn").addEventListener("click", () => { setModo(false); iniciar(); baixarAlunos(true); });
+  $("goBtn").addEventListener("click", () => { encerrado = false; atualizarInicio(); setModo(false); iniciar(); baixarAlunos(true); });
 
   function registrar(p, fora){
     const r = { id: uid(), turma: p.turma, matricula: p.matricula, data: hojeISO(), hora: new Date().toTimeString().slice(0, 8), forma: p.forma || "QR", sent: false };
@@ -541,18 +597,52 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   });
 
   // ---------- planilha ----------
-  let sending = false, retryT = null;
+  let sending = false, retryT = null, iniStatus = null, iniP = null, iniQuando = 0;
   const configurado = () => !!(sheetUrl && sheetKey);
   function pill(){
     const p = $("pill"), n = queue.length;
     p.className = "pill " + (!configurado() || chaveRuim ? "off" : n ? "wait" : "ok");
-    $("pillText").textContent = !configurado() ? "Sem planilha" : chaveRuim ? "Chave inválida" : n ? n + " na fila" : "Planilha em dia";
+    const txt = !configurado() ? "Sem planilha" : chaveRuim ? "Chave inválida" : n ? n + " na fila" : "Planilha em dia";
+    $("pillText").textContent = txt; p.title = txt; p.setAttribute("aria-label", txt);
+    atualizarInicio();
   }
   // tela inicial: sem endereço e chave salvos, só se oferece "Configurar este celular"
+  const avisoFila = () => queue.length === 1 ? "1 leitura ainda não foi enviada. Ela fica guardada e vai sozinha quando houver internet."
+    : queue.length + " leituras ainda não foram enviadas. Elas ficam guardadas e vão sozinhas quando houver internet.";
   function atualizarInicio(){
-    const ok = configurado();
+    const ok = configurado(), n = doDia().length;
     $("goBtn").hidden = !ok; $("cfgBtn").hidden = ok;
-    $("startMsg").textContent = ok ? "Leia o QR Code das carteirinhas e a presença vai direto pra planilha." : "Este celular ainda não está configurado. Peça ao coordenador o QR de configuração e toque no botão abaixo.";
+    $("goBtn").textContent = n ? "Continuar chamada" : "Iniciar leitura";
+    $("startCount").hidden = !n; $("startCount").textContent = n + (n === 1 ? " leitura neste celular hoje ✓" : " leituras neste celular hoje ✓");
+    let msg = ok ? "Leia o QR Code das carteirinhas e a presença vai direto pra planilha." : "Este celular ainda não está configurado. Peça ao coordenador o QR de configuração e toque no botão abaixo.";
+    if (encerrado) { msg = "Encerrado sozinho por ficar minimizado."; }
+    $("startMsg").textContent = msg;
+    const q = queue.length; $("startFila").hidden = !q;
+    $("startFila").textContent = q === 1 ? "⚠️ 1 leitura ainda não enviada" : "⚠️ " + q + " leituras ainda não enviadas";
+    turmasInicio();
+  }
+  // turmas lidas hoje neste celular, com o status da planilha (só em memória; sem internet, só os nomes)
+  const normT = t => String(t || "").trim().toUpperCase();
+  function turmasInicio(){
+    const ul = $("startTurmas"), mapa = new Map();
+    doDia().forEach(r => { const t = String(turmaDe(r) || "").trim(); if (t && !mapa.has(normT(t))) mapa.set(normT(t), t); });
+    ul.textContent = ""; ul.hidden = !mapa.size;
+    Array.from(mapa.entries()).sort((a, b) => a[1].localeCompare(b[1], "pt", { numeric: true })).forEach(([k, nome]) => {
+      const li = document.createElement("li"), f = iniStatus && iniStatus.get(k);
+      li.textContent = !iniStatus || f === undefined ? nome : f ? "🟢 " + nome + ": finalizada por " + f.professor + " às " + String(f.hora).slice(0, 5) : "🟡 " + nome + ": não finalizada";
+      ul.appendChild(li);
+    });
+    if (mapa.size && !$("start").hidden && !iniP && configurado() && !chaveRuim && navigator.onLine !== false && Date.now() - iniQuando > 15000) buscarInicio();
+  }
+  async function buscarInicio(){
+    iniQuando = Date.now();
+    iniP = (async () => {
+      try {
+        const j = await chamar({ acao: "status", data: hojeISO() });
+        if (j && j.ok && Array.isArray(j.turmas)) { iniStatus = new Map(j.turmas.map(t => [normT(t.turma), t.finalizada || null])); }
+      } catch(e) {}
+      iniP = null; if (!$("start").hidden) turmasInicio();
+    })();
   }
   // toda conversa com a planilha: POST em JSON com acao e chave (contrato no PLANO.md)
   async function chamar(corpo){
@@ -662,6 +752,9 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   $("cfgBtn").addEventListener("click", () => { audioOn(); lerConfig(); });
   $("cfgCancel").addEventListener("click", () => setModo(false));
   atualizarInicio();
+  $("autoMin").value = String(autoMin);
+  $("autoMin").addEventListener("change", () => { const v = Number($("autoMin").value); autoMin = [2, 5, 10, 30].indexOf(v) >= 0 ? v : 5; store(K.auto, autoMin); });
+  estreito.addEventListener && estreito.addEventListener("change", () => { $("today").textContent = hojeTxt(); });
   $("askConfirm").checked = askConfirm;
   $("askConfirm").addEventListener("change", () => { askConfirm = $("askConfirm").checked; store(K.ask, askConfirm); });
 
@@ -800,11 +893,35 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   }
   // "Chamada finalizada · Desfazer": 10 segundos para o professor se arrepender
   let undoT = null, undoInfo = null;
-  function esconderDesfazer(){ clearInterval(undoT); undoInfo = null; $("undoBar").hidden = true; $("undoTime").classList.remove("run"); }
+  // fim = true: a barra terminou (ou o Desfazer foi recusado) e a finalização vale → avisa que pode fechar o app
+  function esconderDesfazer(fim){
+    const u = undoInfo; clearInterval(undoT); undoInfo = null; $("undoBar").hidden = true; $("undoTime").classList.remove("run");
+    if (fim === true && u) mostrarFimChamada(u.turma);
+  }
+  async function mostrarFimChamada(turma){
+    await enviar();
+    if (encerrado) return;
+    $("fimTxt").textContent = "✅ Chamada da " + turma + " finalizada. " + (queue.length ? avisoFila() : "Tudo enviado pra planilha. Pode fechar o app: deslize de baixo pra cima.");
+    $("fimChamada").hidden = false;
+  }
+  $("fimOk").addEventListener("click", () => { $("fimChamada").hidden = true; });
+  // Encerrar sozinho (app minimizado por muito tempo): desliga a câmera e apaga nomes e status da memória
+  function encerrar(){
+    scanning = false;
+    if (stream) { try { stream.getTracks().forEach(t => t.stop()); } catch(e) {} }
+    stream = null; track = null; try { video.srcObject = null; } catch(e) {}
+    $("target").hidden = true; $("target").classList.remove("hit"); $("hintcam").hidden = true; $("torchBtn").hidden = true;
+    $("card").hidden = true; pending = null; $("bottombar").hidden = false; still.hidden = true; setModo(false);
+    document.querySelectorAll(".sheetwrap").forEach(w => { w.hidden = true; });
+    pararLista(); esconderDesfazer(); $("fimChamada").hidden = true;
+    alunosMem = null; iniStatus = null; iniQuando = 0; tentouAlunos = false; clearTimeout(retryAlunosT); turmaAberta = "";
+    encerrado = true; render(); $("start").hidden = false; atualizarInicio();
+    enviar();
+  }
   function mostrarDesfazer(turma, data){
     undoInfo = { turma, data }; clearInterval(undoT);
     const fim = Date.now() + 10000, bt = $("undoBtn"), tm = $("undoTime");
-    const tic = () => { const r = Math.ceil((fim - Date.now()) / 1000); if (r <= 0) esconderDesfazer(); else bt.textContent = "Desfazer (" + r + ")"; };
+    const tic = () => { const r = Math.ceil((fim - Date.now()) / 1000); if (r <= 0) esconderDesfazer(true); else bt.textContent = "Desfazer (" + r + ")"; };
     tic(); $("undoBar").hidden = false;
     tm.classList.remove("run"); void tm.offsetWidth; tm.classList.add("run");   // reinicia a barrinha
     undoT = setInterval(tic, 250);
@@ -816,8 +933,8 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       const j = await chamar({ acao: "desfinalizar", turma: u.turma, data: u.data });
       if (j && j.ok) { esconderDesfazer(); toast("Chamada reaberta", "ok", 2500); atualizarStatus(); }
       else if (j && j.erro === "chave") { esconderDesfazer(); chaveRuim = true; pill(); toast("A planilha não aceitou a chave.", "err", 3000); }
-      else if (j && j.erro === "prazo") { esconderDesfazer(); toast("Passou o tempo de desfazer.", "err", 3000); }
-      else if (j && j.erro === "outro_professor") { esconderDesfazer(); toast("Só quem finalizou pode desfazer.", "err", 3000); }
+      else if (j && j.erro === "prazo") { esconderDesfazer(true); toast("Passou o tempo de desfazer.", "err", 3000); }
+      else if (j && j.erro === "outro_professor") { esconderDesfazer(true); toast("Só quem finalizou pode desfazer.", "err", 3000); }
       else if (j && j.erro === "nao_finalizada") { esconderDesfazer(); toast("A chamada já não estava finalizada.", "warn", 3000); atualizarStatus(); }
       else throw new Error("resposta inválida");
     } catch(e) { toast("Sem conexão, tente de novo.", "err", 3000); }

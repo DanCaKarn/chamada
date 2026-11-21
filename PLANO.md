@@ -186,18 +186,28 @@ finalizar → fica 🟢 nos dois.
 
 ### [ ] Etapa 8: App: Encerrar e encerrar automático
 **Pedido para o Claude Code:**
-> Etapa 8 do PLANO.md: botão "Encerrar" no topo, perto da engrenagem: desliga a câmera, tenta enviar a fila
-> (avisando se sobrar algo), apaga a lista de nomes da memória e mostra "Chamada encerrada ✅ Pode fechar o app."
-> Nos Ajustes: "Encerrar sozinho depois de" 2 / 5 / 10 / 30 min minimizado (padrão 5, sem opção "Nunca").
-> Implementar guardando o horário em que o app foi para segundo plano (visibilitychange) e comparando na volta.
->
-> Também nesta etapa: botão de som 🔊/🔇 no topo, ao lado da engrenagem. Som desligado = sem apito, mas mantém
-> a vibração e o retorno visual (toast, cartão e cor do alvo). A escolha fica salva no celular.
-> Reorganizar o topo para caber os dois botões novos (Encerrar e Som) numa tela estreita de celular
-> (ex.: iPhone SE, 320 px): data/subtítulo e indicador da planilha sem estourar, botões com área de toque de pelo menos 42 px.
+> Etapa 8 do PLANO.md (decisão revista com a equipe: **não há botão Encerrar**; o fim da chamada é o Finalizar).
+> - Depois de finalizar com sucesso, quando a barra do Desfazer terminar (ou o Desfazer for recusado e a finalização valer),
+>   mostrar "✅ Chamada da <turma> finalizada. Tudo enviado pra planilha. Pode fechar o app: deslize de baixo pra cima."
+>   Se a fila não estiver vazia, trocar "Tudo enviado…" por "N leituras ainda não foram enviadas. Elas ficam guardadas e
+>   vão sozinhas quando houver internet." Não desliga a câmera (dá para seguir com outra turma).
+> - Ajustes: "Encerrar sozinho depois de" 2 / 5 / 10 / 30 min minimizado (padrão 5, sem "Nunca"), guardando o horário em que o
+>   app foi para segundo plano (visibilitychange) e comparando na volta. Ao encerrar: desliga a câmera, apaga da memória a lista
+>   de nomes e o status, fecha os painéis e volta à tela inicial (tenta enviar a fila).
+> - Tela inicial: se já houver leituras hoje neste celular, mostrar "N leituras neste celular hoje ✓" (o número é só deste aparelho) e o botão
+>   "Continuar chamada" no lugar de "Iniciar leitura". Abaixo, as turmas lidas hoje neste celular, cada uma com o status da
+>   planilha (🟢 "finalizada por <professor> às HH:MM" ou 🟡 "não finalizada"; sem internet, só os nomes) e, se a fila não
+>   estiver vazia, "⚠️ N leituras ainda não enviadas" (só lembrete, não bloqueia).
+> - Botão de som 🔊/🔇 no topo, ao lado da engrenagem. Desligado = sem apito, mas mantém a vibração (função `tremer()`: `navigator.vibrate`
+>   ou, no iPhone com iOS 18, o toque tátil de um `<input type="checkbox" switch>`) e o retorno visual (toast, cartão, cor do alvo).
+>   A escolha fica salva no celular.
+> - Topo só com marca/data, indicador da planilha, lanterna (quando houver), som e engrenagem; cabe em 320 px (indicador vira só a
+>   bolinha em telas estreitas) e os botões têm pelo menos 42 px de toque.
 
-**Como testar:** encerrar e ver que os nomes somem (reabrir baixa de novo); com 2 min, minimizar por 3 min e voltar;
-som desligado: sem apito, com vibração e aviso na tela, e a escolha continua depois de fechar e abrir o app; topo em tela de 320 px sem cortar nada.
+**Como testar:** finalizar uma turma e ver a mensagem depois do Desfazer (e o aviso de leituras não enviadas, offline); com 2 min,
+minimizar por 3 min e voltar: câmera desligada e nomes apagados (reabrir baixa de novo); com leituras hoje, tela inicial com
+"N leituras neste celular hoje ✓", turmas com status e "Continuar chamada"; som desligado: sem apito, com aviso na tela (e vibração/toque tátil quando o aparelho
+permitir), e a escolha continua depois de fechar e abrir o app; topo em tela de 320 px sem cortar nada.
 
 ---
 

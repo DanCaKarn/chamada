@@ -184,7 +184,7 @@ finalizar → fica 🟢 nos dois.
 
 ---
 
-### [ ] Etapa 8: App: Encerrar e encerrar automático
+### [x] Etapa 8: App: Encerrar e encerrar automático
 **Pedido para o Claude Code:**
 > Etapa 8 do PLANO.md (decisão revista com a equipe: **não há botão Encerrar**; o fim da chamada é o Finalizar).
 > - Depois de finalizar com sucesso, quando a barra do Desfazer terminar (ou o Desfazer for recusado e a finalização valer),
@@ -229,7 +229,9 @@ permitir), e a escolha continua depois de fechar e abrir o app; topo em tela de 
 3. Importar a aba Alunos de verdade e criar os professores pelo menu.
 4. Gerar o QR de configuração de cada professor (configurar.html, com o novo `/exec`) e configurar os celulares.
 5. Imprimir as carteirinhas com o QR Code da matrícula.
-6. Fazer um piloto com **uma turma** antes de liberar para todas.
+6. Fazer um piloto com **uma turma** antes de liberar para todas. **Item obrigatório do piloto:** testar num celular
+   Android de verdade (leitura, vibração, compartilhar, instalar na tela inicial). A vibração não funciona no iPhone
+   (limitação da Apple); a maioria dos usuários usa Android.
 
 ---
 

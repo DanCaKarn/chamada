@@ -153,6 +153,9 @@ li{display:grid;grid-template-columns:1.8rem 1fr auto auto auto;align-items:cent
 .sharebox label.todas{border-top:none;border-bottom:2px solid var(--line)}
 .sharebox input[type=checkbox]{width:22px;height:22px;flex:none}
 .sharebox .lista{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 12px;max-height:45vh;overflow-y:auto}
+.seg{display:flex;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{flex:1;padding:10px;border:0;border-radius:0;background:var(--surface);color:var(--fg);font-weight:600}
+.seg button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
 .sharebox textarea{width:100%;min-height:180px;font:inherit;font-size:16px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;-webkit-user-select:text;user-select:text}
 .sharebox .btns{display:flex;gap:10px}.sharebox .btns button{flex:1;padding:13px}
 .det .btns{display:flex;gap:10px;margin-top:12px}
@@ -251,6 +254,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     <div class="sheet" role="dialog" aria-label="Lista de presença">
       <div class="sheethead"><h2>Presentes hoje</h2><div class="hbtns"><button class="close" id="refBtn">Atualizar</button><button class="close" data-close>Fechar</button></div></div>
       <div class="sheetbody">
+        <div class="seg" id="filtroBox" hidden></div>
         <p class="aviso" id="listAviso" hidden></p>
         <div id="groups"></div>
         <div id="shareBox"></div>
@@ -299,6 +303,11 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
           <select id="autoMin"><option value="2">2 minutos</option><option value="5">5 minutos</option><option value="10">10 minutos</option><option value="30">30 minutos</option></select>
           <p class="help">Conta o tempo com o app minimizado. Ao encerrar, a câmera desliga e os nomes saem da memória.</p>
         </div>
+        <div class="field">
+          <label>Minhas turmas</label>
+          <div class="sharebox" id="minhasBox"></div>
+          <p class="help">Marque as turmas em que você dá aula. A Lista e o Compartilhar começam por elas. A câmera e o Digitar continuam aceitando alunos de qualquer turma.</p>
+        </div>
         <p class="help">As presenças ficam guardadas no celular só até chegarem na planilha. Sem internet, elas esperam na fila e são enviadas sozinhas quando a conexão voltar.</p>
       </div>
     </div>
@@ -311,7 +320,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 (function(){
   "use strict";
   const $ = id => document.getElementById(id);
-  const K = { regs: "cqr-regs", queue: "cqr-queue", url: "cqr-url", key: "cqr-key", ask: "cqr-ask", auto: "cqr-auto", som: "cqr-som" };
+  const K = { regs: "cqr-regs", queue: "cqr-queue", url: "cqr-url", key: "cqr-key", ask: "cqr-ask", auto: "cqr-auto", som: "cqr-som", minhas: "cqr-minhas", filtro: "cqr-filtro" };
   const load = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e) { return d; } };
   const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} };
 
@@ -323,6 +332,8 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   let modoConfig = false;            // câmera lendo o QR de configuração (e não carteirinhas)
   let askConfirm = load(K.ask, true);
   let somOn = load(K.som, true) !== false;
+  let minhas = load(K.minhas, []); if (!Array.isArray(minhas)) minhas = [];   // só nomes de turmas
+  let filtroMinhas = load(K.filtro, "minhas") !== "todas";
   let autoMin = Number(load(K.auto, 5)); if ([2, 5, 10, 30].indexOf(autoMin) < 0) autoMin = 5;
   let encerrado = false, ocultoEm = 0;   // encerrado sozinho (câmera e nomes já limpos)
   // Encerrar sozinho: registrado ANTES dos outros ouvintes de visibilitychange, para limpar antes de eles baixarem a lista de novo
@@ -740,7 +751,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       if (!j || !j.ok || !Array.isArray(j.alunos)) throw new Error("resposta inválida");
       const m = new Map();
       j.alunos.forEach(a => { const k = String(a.m || "").trim().toUpperCase(); if (k && !m.has(k)) m.set(k, { n: String(a.n || ""), t: String(a.t || ""), s: String(a.s || "") }); });
-      alunosMem = m; baixando = false; clearTimeout(retryAlunosT); render();
+      alunosMem = m; baixando = false; clearTimeout(retryAlunosT); render(); renderMinhas();
     } catch(e) { baixando = false; agendarAlunos(); }
   }
   function agendarAlunos(){ clearTimeout(retryAlunosT); retryAlunosT = setTimeout(baixarAlunos, 20000); }
@@ -789,7 +800,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   });
   $("refBtn").addEventListener("click", () => atualizarStatus());
   $("typeBtn").addEventListener("click", () => { abrir("typeSheet"); setTimeout(() => $("manual").focus(), 50); });
-  $("setBtn").addEventListener("click", () => { setModo(false); abrir("setSheet"); });
+  $("setBtn").addEventListener("click", () => { setModo(false); abrir("setSheet"); minhasVistas = null; renderMinhas(); baixarAlunos(); });
   $("manualForm").addEventListener("submit", e => {
     e.preventDefault(); audioOn();
     const p = parse($("manual").value, "Digitado"); $("manual").value = "";
@@ -1016,7 +1027,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     if (!navigator.share && await copiarTexto(txt)) { render(); return; }
     previaTxt = txt; render();
   }
-  function renderShare(ord){
+  function renderShare(ord, visK){
     const box = $("shareBox"); box.textContent = ""; box.className = "sharebox";
     if (!ord.length && !statusMem) return;
     const pedir = async tipo => {
@@ -1025,10 +1036,13 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
         await atualizarStatus();
         if (!statusMem) { toast(AVISO_SEM_CONEXAO, "err", 3000); return; }
       }
-      // já vêm marcadas as turmas lidas hoje neste celular; se não houver nenhuma, todas
-      const todas = statusMem.turmas.map(t => chaveT(t.turma)), locais = new Set(doDia().map(r => chaveT(turmaDe(r))));
+      // já vêm marcadas as minhas turmas; sem elas, as lidas hoje neste celular; sem nenhuma, todas
+      const todas = statusMem.turmas.map(t => chaveT(t.turma)).filter(k => visK.has(k)), locais = new Set(doDia().map(r => chaveT(turmaDe(r))));
       const ini = todas.filter(k => locais.has(k));
-      escolhaShare = { tipo, sel: new Set(ini.length ? ini : todas) }; previaTxt = null; render();
+      if (!todas.length) { toast("Nenhuma turma na lista.", "warn", 2500); return; }
+      if (todas.length === 1) { compartilhar(tipo, new Set(todas)); return; }
+      const mf = minhasEfetivas(), minhasIni = todas.filter(k => mf.has(k));
+      escolhaShare = { tipo, sel: new Set(minhasIni.length ? minhasIni : ini.length ? ini : todas) }; previaTxt = null; render();
     };
     const row = el("div", "row");
     const b1 = el("button", "", "Compartilhar presentes"), b2 = el("button", "", "Compartilhar ausentes");
@@ -1036,7 +1050,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     b1.addEventListener("click", () => pedir("presentes")); b2.addEventListener("click", () => pedir("ausentes"));
     row.append(b1, b2); box.appendChild(row);
     if (escolhaShare && statusMem) {
-      const e = escolhaShare, ts = statusMem.turmas.slice().sort((x, y) => ptSort(x.turma, y.turma));
+      const e = escolhaShare, ts = statusMem.turmas.filter(t => visK.has(chaveT(t.turma))).slice().sort((x, y) => ptSort(x.turma, y.turma));
       box.appendChild(el("div", "confirma", "Compartilhar " + e.tipo + " de quais turmas?"));
       const lista = el("div", "lista");
       const caixa = (rot, marcada, fn, cls) => {
@@ -1065,6 +1079,40 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     }
   }
 
+  // ---------- Minhas turmas (só os nomes das turmas ficam salvos) ----------
+  let minhasVistas = null;   // turmas mostradas no Ajustes (inclui as salvas que sumiram da tela ao desmarcar offline)
+  function turmasConhecidas(){
+    const m = new Map();
+    if (alunosMem) alunosMem.forEach(a => { const t = String(a.t || "").trim(); if (t && !m.has(chaveT(t))) m.set(chaveT(t), t); });
+    else if (statusMem) statusMem.turmas.forEach(t => { if (!m.has(chaveT(t.turma))) m.set(chaveT(t.turma), t.turma); });
+    else return null;
+    return [...m.values()].sort(ptSort);
+  }
+  function minhasEfetivas(){
+    const salvas = new Set(minhas.map(chaveT)), conhecidas = turmasConhecidas();
+    if (!conhecidas) return salvas;
+    return new Set(conhecidas.map(chaveT).filter(k => salvas.has(k)));
+  }
+  function salvarMinhas(){ store(K.minhas, minhas); render(); }
+  function renderMinhas(){
+    const box = $("minhasBox"); box.textContent = "";
+    const conhecidas = turmasConhecidas();
+    let nomes;
+    if (conhecidas) { nomes = conhecidas; minhasVistas = null; }
+    else { const m = new Map(); minhas.concat(minhasVistas || []).forEach(t => m.set(chaveT(t), t)); minhasVistas = [...m.values()]; nomes = minhasVistas.sort(ptSort); }
+    if (!conhecidas) box.appendChild(el("p", "help", "Conecte à internet para ver todas as turmas"));
+    const lista = el("div", "lista");
+    nomes.forEach(t => {
+      const lb = el("label"), cb = el("input"); cb.type = "checkbox"; cb.checked = minhas.some(x => chaveT(x) === chaveT(t));
+      cb.addEventListener("change", () => {
+        minhas = minhas.filter(x => chaveT(x) !== chaveT(t)); if (cb.checked) minhas.push(t);
+        salvarMinhas();
+      });
+      lb.append(cb, el("span", "", t)); lista.appendChild(lb);
+    });
+    if (nomes.length) box.appendChild(lista);
+  }
+
   function render(){
     const lista = doDia();
     $("count").textContent = lista.length;
@@ -1081,10 +1129,18 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       itens.get(k).regs.push(r);
     });
     const ord = [...itens.entries()].sort((a, b) => (b[1].regs.length > 0) - (a[1].regs.length > 0) || a[1].nome.localeCompare(b[1].nome, "pt-BR"));
-    renderShare(ord);
+    const mf = minhasEfetivas(), temFiltro = mf.size > 0, filtrando = temFiltro && filtroMinhas;
+    const fb = $("filtroBox"); fb.hidden = !temFiltro; fb.textContent = "";
+    if (temFiltro) [["Minhas turmas", true], ["Todas", false]].forEach(([rot, v]) => {
+      const b = el("button", "", rot); b.setAttribute("aria-pressed", filtroMinhas === v);
+      b.addEventListener("click", () => { filtroMinhas = v; store(K.filtro, v ? "minhas" : "todas"); render(); });
+      fb.appendChild(b);
+    });
+    const vis = filtrando ? ord.filter(([k]) => mf.has(k)) : ord;
+    renderShare(ord, new Set(vis.map(([k]) => k)));
     const box = $("groups"); box.textContent = "";
-    if (!ord.length) box.appendChild(el("p", "empty", statusP ? "Carregando…" : "Ninguém registrado hoje ainda."));
-    ord.forEach(([k, it]) => {
+    if (!vis.length) box.appendChild(el("p", "empty", statusP ? "Carregando…" : filtrando ? "Nada registrado hoje nas suas turmas." : "Ninguém registrado hoje ainda."));
+    vis.forEach(([k, it]) => {
       const g = el("div", "group"), st = it.st, aberta = k === turmaAberta;
       const h = el("button", "thead"); h.setAttribute("aria-expanded", aberta);
       const nome = el("span", "", it.nome);

@@ -67,7 +67,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-of
 @media (max-width:360px){.topbar{gap:6px;padding-left:calc(var(--sl) + 10px);padding-right:calc(var(--sr) + 10px)}}
 @media (max-width:339px){.brand b{display:none}}
 .start .cont{color:var(--hit);font-weight:700;font-size:1.05rem}
-.start .turmas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:.95rem;text-align:left}
+.start .turmas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:.95rem;text-align:left;width:100%;max-width:340px}
+.start .turmas .tn{white-space:nowrap;font-weight:700}
 .start .aviso{margin:0;color:#f0b65a;font-weight:600;font-size:.95rem}
 .fim{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:24px}
 .fimcard{background:var(--surface);color:var(--fg);border-radius:20px;padding:20px;max-width:360px;display:flex;flex-direction:column;gap:16px;box-shadow:0 12px 40px rgba(0,0,0,.45)}
@@ -314,7 +315,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   const load = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e) { return d; } };
   const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} };
 
-  let regs = load(K.regs, []);       // registros do dia (e anteriores, limpos depois de 7 dias)
+  let regs = load(K.regs, []);       // registros do dia (e de dias anteriores ainda não enviados)
   let queue = load(K.queue, []);     // operações esperando envio: {op:"add", reg} | {op:"del", id}
   let sheetUrl = load(K.url, "");
   let sheetKey = load(K.key, "");    // chave do professor: fica só neste celular
@@ -343,8 +344,20 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     return o;
   }); store(K.queue, queue);
   regs.forEach(r => { if (r.matricula === undefined && r.codigo !== undefined) { r.matricula = String(r.codigo); delete r.codigo; } if (!r.forma) r.forma = "QR"; }); store(K.regs, regs);
-  // limpa registros com mais de 7 dias que já foram enviados
-  (function(){ const lim = Date.now() - 7 * 864e5; regs = regs.filter(r => !r.sent || new Date(r.data + "T12:00").getTime() > lim); store(K.regs, regs); })();
+  // virada do dia: apaga leituras de dias anteriores que já chegaram na planilha (as não enviadas ficam, com data e hora originais)
+  let diaVisto = hojeISO();
+  function limparAnteriores(){
+    const hoje = hojeISO(), n = regs.length;
+    regs = regs.filter(r => !r.sent || r.data >= hoje);
+    if (regs.length !== n) store(K.regs, regs);
+  }
+  limparAnteriores();
+  function viradaDoDia(){
+    if (hojeISO() === diaVisto) return;
+    diaVisto = hojeISO(); limparAnteriores(); render(); pill();
+  }
+  setInterval(viradaDoDia, 30000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) viradaDoDia(); });
 
   const PREFIXO = "CHAMADAQR1";
   // Matrícula = o texto depois do "|" (se houver) ou o texto inteiro. O QR de configuração nunca é matrícula.
@@ -617,8 +630,10 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     let msg = ok ? "Leia o QR Code das carteirinhas e a presença vai direto pra planilha." : "Este celular ainda não está configurado. Peça ao coordenador o QR de configuração e toque no botão abaixo.";
     if (encerrado) { msg = "Encerrado sozinho por ficar minimizado."; }
     $("startMsg").textContent = msg;
-    const q = queue.length; $("startFila").hidden = !q;
-    $("startFila").textContent = q === 1 ? "⚠️ 1 leitura ainda não enviada" : "⚠️ " + q + " leituras ainda não enviadas";
+    const pend = regs.filter(r => !r.sent), q = pend.length, ant = pend.filter(r => r.data < hojeISO()).length;
+    $("startFila").hidden = !q;
+    $("startFila").textContent = "⚠️ " + (q === 1 ? "1 leitura ainda não enviada" : q + " leituras ainda não enviadas")
+      + (ant ? " (" + ant + (ant === 1 ? " de dia anterior" : " de dias anteriores") + ")" : "") + ". Conecte à internet.";
     turmasInicio();
   }
   // turmas lidas hoje neste celular, com o status da planilha (só em memória; sem internet, só os nomes)
@@ -629,7 +644,10 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     ul.textContent = ""; ul.hidden = !mapa.size;
     Array.from(mapa.entries()).sort((a, b) => a[1].localeCompare(b[1], "pt", { numeric: true })).forEach(([k, nome]) => {
       const li = document.createElement("li"), f = iniStatus && iniStatus.get(k);
-      li.textContent = !iniStatus || f === undefined ? nome : f ? "🟢 " + nome + ": finalizada por " + f.professor + " às " + String(f.hora).slice(0, 5) : "🟡 " + nome + ": não finalizada";
+      const tn = document.createElement("span"); tn.className = "tn"; tn.textContent = nome;
+      if (!iniStatus || f === undefined) li.append(tn);
+      else if (f) li.append("🟢 ", tn, ": finalizada por " + f.professor + " às " + String(f.hora).slice(0, 5));
+      else li.append("🟡 ", tn, ": não finalizada");
       ul.appendChild(li);
     });
     if (mapa.size && !$("start").hidden && !iniP && configurado() && !chaveRuim && navigator.onLine !== false && Date.now() - iniQuando > 15000) buscarInicio();
@@ -663,6 +681,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       queue = queue.filter(o => !feitos.has(o.op === "add" ? "a" + o.reg.id : "d" + o.id)); store(K.queue, queue);
       const ids = new Set(lote.filter(o => o.op === "add").map(o => o.reg.id));
       regs.forEach(r => { if (ids.has(r.id)) r.sent = true; }); store(K.regs, regs);
+      limparAnteriores();
       sending = false; render(); pill();
       if (queue.length) enviar(); else if (listaAberta()) atualizarStatus();
     } catch(e) {

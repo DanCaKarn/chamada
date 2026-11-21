@@ -211,7 +211,7 @@ permitir), e a escolha continua depois de fechar e abrir o app; topo em tela de 
 
 ---
 
-### [ ] Etapa 9: App: limpeza na virada do dia e aviso
+### [x] Etapa 9: App: limpeza na virada do dia e aviso
 **Pedido para o Claude Code:**
 > Etapa 9 do PLANO.md: ao abrir o app (e na virada do dia com ele aberto), apagar do celular as leituras de dias
 > anteriores já enviadas. As não enviadas continuam na fila, e aparece o aviso

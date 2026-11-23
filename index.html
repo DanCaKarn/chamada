@@ -341,8 +341,8 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   window.addEventListener("unhandledrejection", function(e){ var r = e.reason; mostrar(r && r.message ? r.message : r, r && r.stack ? "linha " + (String(r.stack).match(/:(\d+):\d+/) || [0, "?"])[1] : ""); });
 })();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/barcode-detector@3.0.8/dist/iife/polyfill.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/barcode-detector@3.0.8/dist/iife/polyfill.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" crossorigin="anonymous"></script>
 <script>
 (function(){
   "use strict";

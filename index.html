@@ -314,6 +314,33 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   </div>
 </div>
 
+<script>
+// Aviso de erro na tela (ajuda a achar bugs no iPhone). Nunca mostra dado de aluno: só mensagem curta, linha, tela e modo.
+(function(){
+  var caixa = null, jaMostrou = 0;
+  function limpa(m){ return String(m == null ? "" : m).replace(/\d{6,}/g, "…").slice(0, 200); }
+  function mostrar(msg, onde){
+    try {
+      if (++jaMostrou > 5) return;
+      var sa = false; try { sa = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true; } catch(e) {}
+      var t = "Erro: " + limpa(msg) + (onde ? "\n" + onde : "") + "\nTela " + innerWidth + "x" + innerHeight + " · " + (sa ? "app instalado" : "navegador");
+      if (!caixa) {
+        caixa = document.createElement("div");
+        caixa.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#3d1714;color:#ffd7d2;border:1px solid #ff8a80;border-radius:12px;padding:10px 12px;font:13px/1.35 -apple-system,system-ui,sans-serif;white-space:pre-wrap;-webkit-user-select:text;user-select:text";
+        var tx = document.createElement("span"); caixa.appendChild(tx);
+        var b = document.createElement("button"); b.textContent = "Fechar";
+        b.style.cssText = "display:block;margin-top:8px;padding:6px 14px;border:0;border-radius:8px;background:#ffd7d2;color:#3d1714;font:600 13px system-ui";
+        b.onclick = function(){ caixa.style.display = "none"; };
+        caixa.appendChild(b); (document.body || document.documentElement).appendChild(caixa);
+      }
+      caixa.firstChild.textContent = t; caixa.style.display = "block";
+    } catch(e) {}
+  }
+  window.__avisoErro = mostrar;
+  window.addEventListener("error", function(e){ mostrar(e.message, "linha " + e.lineno + ", coluna " + e.colno); });
+  window.addEventListener("unhandledrejection", function(e){ var r = e.reason; mostrar(r && r.message ? r.message : r, r && r.stack ? "linha " + (String(r.stack).match(/:(\d+):\d+/) || [0, "?"])[1] : ""); });
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/barcode-detector@3.0.8/dist/iife/polyfill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script>
@@ -445,19 +472,49 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     audioOn();
     $("camErr").hidden = true;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return semCamera("Este navegador não libera a câmera ao vivo.");
+    soltarCamera();   // nunca deixa uma câmera velha (que o iOS pode ter desligado) para trás
+    const pedido = ++pedidoCam;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
+      // o iOS às vezes deixa o getUserMedia pendente para sempre: desiste depois de 10 s
+      const s = await Promise.race([
+        navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } }),
+        new Promise((_, no) => setTimeout(() => no({ name: "Demorou" }), 10000))
+      ]);
+      if (pedido !== pedidoCam) { s.getTracks().forEach(t => t.stop()); return; }
+      stream = s;
     } catch(e) {
-      return semCamera(e && e.name === "NotAllowedError" ? "A câmera foi bloqueada. No iPhone: Ajustes > Safari > Câmera > Permitir, e abra o app de novo." : "Não consegui abrir a câmera.");
+      if (pedido !== pedidoCam) return;
+      return semCamera(e && e.name === "NotAllowedError" ? "A câmera foi bloqueada. No iPhone: Ajustes > Safari > Câmera > Permitir, e abra o app de novo."
+        : e && e.name === "Demorou" ? "A câmera não respondeu. Feche o app e abra de novo."
+        : "Não consegui abrir a câmera.");
     }
     video.srcObject = stream;
-    try { await video.play(); } catch(e) {}
+    try { await Promise.race([video.play(), sleep(5000)]); } catch(e) {}
     track = stream.getVideoTracks()[0];
+    track.addEventListener("ended", cameraMorreu);
     try { const cap = track.getCapabilities ? track.getCapabilities() : {}; if (cap.torch) $("torchBtn").hidden = false;
           if (cap.focusMode && cap.focusMode.includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}); } catch(e) {}
     $("start").hidden = true; $("target").hidden = false; $("hintcam").hidden = false;
     scanning = true; loop();
   }
+  let pedidoCam = 0;
+  function soltarCamera(){
+    scanning = false;
+    if (stream) { try { stream.getTracks().forEach(t => t.stop()); } catch(e) {} }
+    stream = null; track = null; try { video.srcObject = null; } catch(e) {}
+  }
+  // o iOS desliga a câmera em segundo plano: se a trilha morreu, volta para a tela inicial em vez de ficar com vídeo congelado
+  function cameraMorreu(){
+    if (!stream) return;
+    soltarCamera();
+    $("target").hidden = true; $("target").classList.remove("hit"); $("hintcam").hidden = true; $("torchBtn").hidden = true;
+    $("card").hidden = true; pending = null; $("bottombar").hidden = false; still.hidden = true; setModo(false);
+    document.querySelectorAll(".sheetwrap").forEach(w => { w.hidden = true; });
+    $("start").hidden = false; atualizarInicio();
+  }
+  function conferirCamera(){ if (stream && (!track || track.readyState === "ended")) cameraMorreu(); }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) conferirCamera(); });
+  window.addEventListener("pageshow", conferirCamera);
   function semCamera(msg){ $("camErr").textContent = msg; $("camErr").hidden = false; $("photoBtn").hidden = false; }
 
   let torchOn = false;
@@ -584,7 +641,12 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   }
   $("cYes").addEventListener("click", () => { if (pending) registrar(pending, pending.turma === "Fora da lista"); retomar(); });
   $("cNo").addEventListener("click", retomar);
-  $("goBtn").addEventListener("click", () => { encerrado = false; atualizarInicio(); setModo(false); iniciar(); baixarAlunos(true); });
+  $("goBtn").addEventListener("click", () => {
+    encerrado = false;
+    try { atualizarInicio(); setModo(false); } catch(e) { window.__avisoErro && window.__avisoErro(e && e.message, "goBtn"); }
+    iniciar().catch(e => window.__avisoErro && window.__avisoErro(e && e.message, "iniciar"));
+    try { baixarAlunos(true); } catch(e) { window.__avisoErro && window.__avisoErro(e && e.message, "alunos"); }
+  });
 
   function registrar(p, fora){
     const r = { id: uid(), turma: p.turma, matricula: p.matricula, data: hojeISO(), hora: new Date().toTimeString().slice(0, 8), forma: p.forma || "QR", sent: false };
@@ -675,8 +737,12 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   }
   // toda conversa com a planilha: POST em JSON com acao e chave (contrato no PLANO.md)
   async function chamar(corpo){
-    const resp = await fetch(sheetUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({}, corpo, { chave: sheetKey })), redirect: "follow" });
-    return resp.json();
+    // timeout: se o iOS suspende o app no meio, o fetch pode nunca terminar e prender "sending"/"baixando" para sempre
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 20000);
+    try {
+      const resp = await fetch(sheetUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({}, corpo, { chave: sheetKey })), redirect: "follow", signal: ac.signal });
+      return await resp.json();
+    } finally { clearTimeout(t); }
   }
   async function enviar(){
     pill();
@@ -800,7 +866,10 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
   });
   $("refBtn").addEventListener("click", () => atualizarStatus());
   $("typeBtn").addEventListener("click", () => { abrir("typeSheet"); setTimeout(() => $("manual").focus(), 50); });
-  $("setBtn").addEventListener("click", () => { setModo(false); abrir("setSheet"); minhasVistas = null; renderMinhas(); baixarAlunos(); });
+  $("setBtn").addEventListener("click", () => {
+    abrir("setSheet");   // primeiro abre o painel; se o resto falhar, ele já está na tela
+    try { setModo(false); minhasVistas = null; renderMinhas(); baixarAlunos(); } catch(e) { window.__avisoErro && window.__avisoErro(e && e.message, "ajustes"); }
+  });
   $("manualForm").addEventListener("submit", e => {
     e.preventDefault(); audioOn();
     const p = parse($("manual").value, "Digitado"); $("manual").value = "";

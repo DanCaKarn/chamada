@@ -806,6 +806,9 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 
   // ---------- lista de alunos (SÓ em memória: nunca em localStorage) ----------
   let alunosMem = null, baixando = false, tentouAlunos = false, retryAlunosT = null;
+  // precisam existir antes da chamada inicial de atualizarInicio() (usa turmaDe); const não "sobe" como function
+  const infoDe = r => (alunosMem && alunosMem.get(r.matricula)) || null;
+  const turmaDe = r => { const a = infoDe(r); return a && a.t ? a.t : r.turma; };   // turma e nome: da memória, quando houver
   async function baixarAlunos(forcar){
     tentouAlunos = true;
     if (!configurado() || chaveRuim || baixando || (alunosMem && !forcar)) return;
@@ -881,8 +884,6 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     mostrarCartao(p, st, st.tipo === "ok", true);
   });
 
-  const infoDe = r => (alunosMem && alunosMem.get(r.matricula)) || null;
-  const turmaDe = r => { const a = infoDe(r); return a && a.t ? a.t : r.turma; };   // turma e nome: da memória, quando houver
   // ---------- painel Lista por turma ----------
   // Nomes dos ausentes vêm do status e ficam SÓ nesta variável (memória): nunca em localStorage.
   let statusMem = null, statusErro = null, statusP = null, statusT = null, turmaAberta = "", confirmando = null, finalizando = false;

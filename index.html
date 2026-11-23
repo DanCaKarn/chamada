@@ -309,11 +309,13 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
           <p class="help">Marque as turmas em que você dá aula. A Lista e o Compartilhar começam por elas. A câmera e o Digitar continuam aceitando alunos de qualquer turma.</p>
         </div>
         <p class="help">As presenças ficam guardadas no celular só até chegarem na planilha. Sem internet, elas esperam na fila e são enviadas sozinhas quando a conexão voltar.</p>
+        <p class="help" id="versao" style="text-align:center;font-size:.75rem;opacity:.7"></p>
       </div>
     </div>
   </div>
 </div>
 
+<script src="version.js"></script>
 <script>
 // Aviso de erro na tela (ajuda a achar bugs no iPhone). Nunca mostra dado de aluno: só mensagem curta, linha, tela e modo.
 (function(){
@@ -323,7 +325,8 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
     try {
       if (++jaMostrou > 5) return;
       var sa = false; try { sa = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true; } catch(e) {}
-      var t = "Erro: " + limpa(msg) + (onde ? "\n" + onde : "") + "\nTela " + innerWidth + "x" + innerHeight + " · " + (sa ? "app instalado" : "navegador");
+      var v = typeof APP_VERSAO !== "undefined" ? "Versão " + APP_VERSAO + " · " : "";
+      var t = "Erro: " + limpa(msg) + (onde ? "\n" + onde : "") + "\n" + v + "tela " + innerWidth + "x" + innerHeight + " · " + (sa ? "app instalado" : "navegador");
       if (!caixa) {
         caixa = document.createElement("div");
         caixa.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#3d1714;color:#ffd7d2;border:1px solid #ff8a80;border-radius:12px;padding:10px 12px;font:13px/1.35 -apple-system,system-ui,sans-serif;white-space:pre-wrap;-webkit-user-select:text;user-select:text";
@@ -1226,6 +1229,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
 
   // ---------- início ----------
   $("today").textContent = hojeTxt();
+  if (typeof APP_VERSAO !== "undefined") $("versao").textContent = "Versão " + APP_VERSAO + " · " + APP_DATA;
   setInterval(() => { const t = hojeTxt(); if ($("today").textContent !== t) { $("today").textContent = t; render(); } }, 60000);
   render(); enviar();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

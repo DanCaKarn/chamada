@@ -23,7 +23,7 @@ A planilha atual é a de testes; a oficial será criada do zero na Etapa 10.
 
 - **LGPD:** nenhum nome de aluno pode ficar no app, no celular, no navegador ou no GitHub. Nomes só na planilha Google; no app, ficam apenas na memória enquanto ele está aberto (nunca em localStorage).
 - **Endereço `/exec` da planilha e chaves dos professores:** nunca vão para o código nem para o GitHub; ficam salvos só no celular.
-- **Cache:** ao mudar `index.html` ou outros arquivos do app, aumente a versão do `CACHE` em `sw.js`, para o iPhone baixar a versão nova.
+- **Cache:** ao mudar `index.html` ou outros arquivos do app, aumente a versão (e a data) em `version.js`, para o iPhone baixar a versão nova. É o único lugar do número: o `sw.js` monta o `CACHE` a partir dele e o app mostra a versão no fim dos Ajustes.
 - **Idioma:** textos do app em português, linguagem simples.
 
 ## Teste local

@@ -10,7 +10,7 @@ Faça **uma etapa por vez**, na ordem: cada uma depende das anteriores.
 - **Segredos fora do código:** o endereço `/exec` e as chaves dos professores nunca vão para arquivos do repositório.
 - **Planilha atual = planilha de testes:** toda a construção usa a planilha que já existe.
   Quando o app estiver pronto, uma **planilha oficial nova** é criada do zero (Etapa 10).
-- **Cache:** ao mudar `index.html` (ou qualquer arquivo do app), aumentar a versão do `CACHE` em `sw.js`.
+- **Cache:** ao mudar `index.html` (ou qualquer arquivo do app), aumentar a versão em `version.js` (o `sw.js` monta o `CACHE` a partir dela).
 - **Ao fim de cada etapa:** testar, depois pedir ao Claude Code *"faça o commit e o push desta etapa"*
   e marcar a etapa como feita aqui (`[x]`).
 

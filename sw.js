@@ -1,6 +1,7 @@
 // Guarda o app no celular para abrir rápido e funcionar sem internet.
-const CACHE = "chamada-qr-v20";
-const APP = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
+importScripts("version.js");   // APP_VERSAO: único lugar do número da versão
+const CACHE = "chamada-qr-v" + self.APP_VERSAO;
+const APP = ["./", "index.html", "version.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 // bibliotecas: as tags <script crossorigin="anonymous"> pedem em modo CORS, então guardar também em CORS (resposta opaca não serve)
 const LIBS = ["https://cdn.jsdelivr.net/npm/barcode-detector@3.0.8/dist/iife/polyfill.js",
   "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"];

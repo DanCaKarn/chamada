@@ -822,7 +822,13 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.8rem;bac
       if (j && j.erro === "chave") { chaveRuim = true; baixando = false; pill(); return; }
       if (!j || !j.ok || !Array.isArray(j.alunos)) throw new Error("resposta inválida");
       const m = new Map();
-      j.alunos.forEach(a => { const k = String(a.m || "").trim().toUpperCase(); if (k && !m.has(k)) m.set(k, { n: String(a.n || ""), t: String(a.t || ""), s: String(a.s || "") }); });
+      // matrícula repetida (aluno remanejado): vale a linha ativa (a última delas); sem nenhuma ativa, a última
+      j.alunos.forEach(a => {
+        const k = String(a.m || "").trim().toUpperCase(); if (!k) return;
+        const atual = m.get(k), s = String(a.s || "");
+        if (atual && s === "Transferido" && atual.s !== "Transferido") return;
+        m.set(k, { n: String(a.n || ""), t: String(a.t || ""), s });
+      });
       alunosMem = m; baixando = false; clearTimeout(retryAlunosT); render(); renderMinhas();
     } catch(e) { baixando = false; agendarAlunos(); }
   }

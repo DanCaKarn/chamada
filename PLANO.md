@@ -28,6 +28,11 @@ Toda conversa é um **POST** para o `/exec` com um JSON que sempre leva a `chave
 | `finalizar` | `turma`, `data` | `ok`, `ja_finalizada`, `professor`, `hora` |
 | `desfinalizar` | `turma`, `data` | `ok`, `desfeita` |
 
+- **Matrícula repetida na aba Alunos** (aluno remanejado): vale a linha **ativa**; se nenhuma estiver ativa, vale a **última**;
+  se houver mais de uma ativa, vale a última delas e a planilha pinta essas linhas de vermelho claro (ao editar a aba Alunos,
+  ao abrir a planilha e no menu "Conferir matrículas repetidas"; nunca no `enviar`). Vale para `enviar`, `alunos` (uma entrada
+  por matrícula), `status`, `finalizar` e `desfinalizar`; o app aplica a mesma regra à lista recebida. No `status`, o aluno
+  conta só na turma da linha que vale.
 - `status`: `total` = alunos **ativos** da turma (transferidos não contam em nada). `finalizada` = `null` ou `{hora, professor}`.
   `sem_chamada` = `true` só se ninguém da turma tem presença na data **e** a turma não está finalizada
   (então `ausentes` vem vazio). Turma finalizada sem presença nenhuma (ex.: excursão): `sem_chamada` = `false`

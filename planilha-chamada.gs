@@ -15,10 +15,13 @@
  * Presença: a turma e o nome vêm da aba Alunos, pela matrícula, na hora em que a leitura chega.
  * Não duplica: mesma data + matrícula (ou mesmo ID, no reenvio do celular) → vale a primeira.
  * Matrícula não cadastrada é gravada mesmo assim: Turma = "NÃO CADASTRADA", linha em amarelo.
+ * Matrícula repetida na aba Alunos (aluno remanejado): vale a linha ATIVA; se nenhuma estiver ativa, vale a
+ * última; se houver mais de uma ativa, vale a última e essas linhas ficam em vermelho claro para corrigir
+ * (a cor é conferida ao editar a aba Alunos, ao abrir a planilha e no menu, nunca no envio do app).
  * Para ser rápido com muitas linhas, só confere as últimas LINHAS_RECENTES de Presenças.
  *
  * Ações: teste, enviar, alunos, status, finalizar, desfinalizar.
- *   alunos     todos os alunos (inclusive transferidos, s = "Transferido").
+ *   alunos     todos os alunos (inclusive transferidos, s = "Transferido"), um por matrícula.
  *   status     por turma, numa data: total de ativos, presentes (número e lista com hora e atraso), ausentes e se está finalizada.
  *   finalizar  grava a turma em Chamadas; se já estava finalizada naquela data, não duplica.
  *   desfinalizar  desfaz a finalização (só o mesmo professor, até 2 minutos depois); desmarca o Atraso.
@@ -41,6 +44,7 @@ const LINHAS_RECENTES = 2000;
 const LINHAS_VALIDACAO = 5000; // quantas linhas da aba Alunos têm a lista suspensa
 const NAO_CADASTRADA = 'NÃO CADASTRADA';
 const COR_AMARELO = '#fff176';
+const COR_REPETIDA = '#f4a6a6'; // vermelho claro: matrícula com mais de uma linha ativa
 
 // ---------------------------------------------------------------- menu
 
@@ -49,7 +53,22 @@ function onOpen() {
     .createMenu('Chamada QR')
     .addItem('Novo professor', 'novoProfessor')
     .addItem('Preparar abas', 'prepararAbas')
+    .addItem('Conferir matrículas repetidas', 'conferirRepetidas')
     .addToUi();
+  marcarRepetidas_();
+}
+
+// Roda sozinho a cada edição feita à mão na planilha.
+function onEdit(e) {
+  if (e && e.range && e.range.getSheet().getName() === ABA_ALUNOS) marcarRepetidas_();
+}
+
+function conferirRepetidas() {
+  const n = marcarRepetidas_();
+  SpreadsheetApp.getUi().alert(n
+    ? n + (n === 1 ? ' matrícula tem' : ' matrículas têm') + ' mais de uma linha ativa. As linhas estão em vermelho na aba Alunos: ' +
+      'deixe só uma sem "Transferido". Enquanto isso, vale a de baixo.'
+    : 'Nenhuma matrícula com mais de uma linha ativa.');
 }
 
 function prepararAbas() {
@@ -216,21 +235,72 @@ function alunos_() {
   return responder_({ ok: true, alunos: lerAlunos_() });
 }
 
-// Todos os alunos, inclusive transferidos. Matrícula repetida: vale a primeira.
+// Todos os alunos, inclusive transferidos, um por matrícula.
+// Matrícula repetida: vale a linha ativa (a última delas); sem nenhuma ativa, vale a última.
 function lerAlunos_() {
+  const porMatricula = new Map();
+  linhasAlunos_().forEach(a => {
+    const k = a.m.toUpperCase();
+    const atual = porMatricula.get(k);
+    if (atual && a.s === 'Transferido' && atual.s !== 'Transferido') return; // a ativa ganha
+    porMatricula.delete(k); // a ordem da lista segue a linha que vale
+    porMatricula.set(k, a);
+  });
+  return Array.from(porMatricula.values());
+}
+
+// Cada linha da aba Alunos que tem matrícula (linha = número na planilha).
+function linhasAlunos_() {
   const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABA_ALUNOS);
-  const ultima = aba.getLastRow();
+  const ultima = aba ? aba.getLastRow() : 0;
   if (ultima < 2) return [];
-  const vistos = new Set();
   const lista = [];
-  aba.getRange(2, 1, ultima - 1, 4).getValues().forEach(l => {
+  aba.getRange(2, 1, ultima - 1, 4).getValues().forEach((l, i) => {
     const m = String(l[1]).trim();
-    if (!m || vistos.has(m.toUpperCase())) return;
-    vistos.add(m.toUpperCase());
+    if (!m) return;
     const transferido = String(l[3]).trim().toUpperCase() === 'TRANSFERIDO';
-    lista.push({ m: m, n: String(l[0]).trim(), t: String(l[2]).trim(), s: transferido ? 'Transferido' : '' });
+    lista.push({ m: m, n: String(l[0]).trim(), t: String(l[2]).trim(), s: transferido ? 'Transferido' : '', linha: i + 2 });
   });
   return lista;
+}
+
+// Pinta (colunas A a D) as linhas ativas das matrículas que têm mais de uma linha ativa.
+// Só apaga a cor que ela mesma pôs. Devolve quantas matrículas estão com problema.
+function marcarRepetidas_() {
+  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABA_ALUNOS);
+  if (!aba) return 0;
+  const ativas = new Map(); // matrícula -> linhas ativas
+  linhasAlunos_().forEach(a => {
+    if (a.s === 'Transferido') return;
+    const k = a.m.toUpperCase();
+    if (!ativas.has(k)) ativas.set(k, []);
+    ativas.get(k).push(a.linha);
+  });
+  const pintar = new Set();
+  let repetidas = 0;
+  ativas.forEach(linhas => {
+    if (linhas.length < 2) return;
+    repetidas++;
+    linhas.forEach(n => pintar.add(n));
+  });
+
+  // vai até a última linha formatada, para limpar a cor mesmo de linhas esvaziadas
+  const ultima = aba.getMaxRows();
+  if (ultima < 2) return repetidas;
+  const faixa = aba.getRange(2, 1, ultima - 1, 4);
+  let mudou = false;
+  const cores = faixa.getBackgrounds().map((linha, i) => linha.map(cor => {
+    const nossa = String(cor).toLowerCase() === COR_REPETIDA;
+    if (pintar.has(i + 2)) {
+      if (!nossa) mudou = true;
+      return COR_REPETIDA;
+    }
+    if (!nossa) return cor;
+    mudou = true;
+    return null;
+  }));
+  if (mudou) faixa.setBackgrounds(cores);
+  return repetidas;
 }
 
 // ---------------------------------------------------------------- ação "status"
@@ -371,16 +441,10 @@ function depois_(a, b) {
   return !!na && !!nb && na > nb;
 }
 
-// matrícula (maiúscula) -> { nome, turma }
+// matrícula (maiúscula) -> { nome, turma }, com a mesma regra de matrícula repetida de lerAlunos_
 function mapaAlunos_() {
-  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABA_ALUNOS);
   const mapa = {};
-  const ultima = aba.getLastRow();
-  if (ultima < 2) return mapa;
-  aba.getRange(2, 1, ultima - 1, 3).getValues().forEach(l => {
-    const m = String(l[1]).trim().toUpperCase();
-    if (m && !mapa[m]) mapa[m] = { nome: String(l[0]).trim(), turma: String(l[2]).trim() };
-  });
+  lerAlunos_().forEach(x => { mapa[x.m.toUpperCase()] = { nome: x.n, turma: x.t }; });
   return mapa;
 }
 
